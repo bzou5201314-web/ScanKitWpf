@@ -1,24 +1,21 @@
 ﻿using Caliburn.Micro;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using PropertyChanged;
-using HalconDotNet;
-using System.Windows;
-using HandyControl;
-using ScanKitWpf.Models;
-using System.Configuration;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Options;
-using System.Diagnostics;
-using System.Linq.Expressions;
-using HPSocket;
-using System.Windows.Controls;
-using System.Text.Json.Serialization;
-using System.Text.Json;
 using Dumpify;
+using HalconDotNet;
+using HPSocket;
+using HPSocket.Base;
+using HPSocket.Tcp;
+using Microsoft.Extensions.Options;
+using PropertyChanged;
+using ScanKitWpf.DataReceiveAdapter;
+using ScanKitWpf.Models;
+using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Windows;
+using System.Windows.Controls;
 
 namespace ScanKitWpf.ViewModels
 {
@@ -26,6 +23,8 @@ namespace ScanKitWpf.ViewModels
     public class MainViewModel:Screen
     {
         readonly AppConfig _config;
+
+        public ObservableCollection<CodeConfig> ScanCodeConfig{get;set;}
 
         StringBuilder stringBuilder = new StringBuilder();
         static HObject ho_Image = null;
@@ -35,11 +34,6 @@ namespace ScanKitWpf.ViewModels
         static HTuple hv_AcqHandle = null;
         HSmartWindowControlWPF hWindow = null;
         List<CodeInfo> codeInfos = new List<CodeInfo>();
-        //定义抓拍控制变量
-        bool snapcontorl = false;
-
-        //线程标志
-        Thread thread = null;
 
         HTuple hv_Width = new HTuple();
         HTuple hv_Height = new HTuple();
@@ -52,14 +46,14 @@ namespace ScanKitWpf.ViewModels
         HTuple hv_Row = new HTuple();
         HTuple hv_Column = new HTuple();
 
-        HTuple hv_QRCodeHandle = new HTuple();
+        HTuple hv_QRCodeHandle = -1;
         HTuple hv_QRCodeResultHandle=new HTuple();
         HTuple hv_QRArea = new HTuple();
         HTuple hv_QRRow= new HTuple();
         HTuple hv_QRColumn = new HTuple();
         HTuple hv_QRPointOrder= new HTuple();
 
-        HTuple hv_DMCodeHandle=new HTuple();
+        HTuple hv_DMCodeHandle=-1;
         HTuple hv_DMCodeResultHandle=new HTuple();
         HTuple hv_DMArea =new HTuple();
         HTuple hv_DMRow=new HTuple();
@@ -75,14 +69,103 @@ namespace ScanKitWpf.ViewModels
         public StringBuilder sbMsg;
         public string rtxtMsg { get; set; }
 
+        public string ImagePath { get; set; }
+
+        private bool _cameraConnected;
+        public bool CameraConnected
+        {
+            get { return _cameraConnected; }
+            set { _cameraConnected = value; }
+        }
+
+
         public MainViewModel(IOptionsMonitor<AppConfig> config)
         {
             _config = config.CurrentValue;
+            ScanCodeConfig = _config.ScanCodeConfig;
             hv_BarCodeType = _config.BarCode.CodeType;
             sbMsg = new StringBuilder();
+
+            tcpServer = new TcpServer<string>();
+            tcpServer.SocketBufferSize = 4096;
+            tcpServer.Address=_config.ServerIp;
+            tcpServer.Port=_config.ServerPort;
+            tcpServer.DataReceiveAdapter=new TextDataReceiveAdapter();
+
+            tcpServer.OnPrepareListen+=TcpServer_OnPrepareListen;
+            tcpServer.OnAccept+=TcpServer_OnAccept;
+            tcpServer.OnParseRequestBody+=TcpServer_OnParseRequestBody;
+            tcpServer.OnSend+=TcpServer_OnSend;
+            tcpServer.OnClose+=TcpServer_OnClose;
+            tcpServer.OnShutdown+=TcpServer_OnShutdown;
+
+        }
+
+        private HandleResult TcpServer_OnPrepareListen(IServer sender, nint listen)
+        {
+            sbMsg.AppendLine($"相机服务启动监听， 监听端口：{sender.Port}");
+            rtxtMsg = sbMsg.ToString();
+            return HandleResult.Ok;
+        }
+
+        private HandleResult TcpServer_OnAccept(IServer sender, nint connId, nint client)
+        {
+            sender.GetRemoteAddress(connId, out string ip, out ushort port);
+            sbMsg.AppendLine($"客户端：{ip},端口：{port} 建立连接");
+            rtxtMsg = sbMsg.ToString();
+            return HandleResult.Ok;
+        }
+
+        private HandleResult TcpServer_OnParseRequestBody(ITcpServer sender, nint connId, string obj)
+        {
+            sbMsg.AppendLine($"接收到消息:{obj}");
+            
+
+            if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
+            {
+                sbMsg.AppendLine($"触发拍照解码");
+                try
+                {
+                    OneGrab();
+                }
+                catch (Exception ex)
+                {
+                    sbMsg.AppendLine($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                    rtxtMsg = sbMsg.ToString();
+                }
+                if (codeInfos.Count>0)
+                {
+                    var sendData = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(codeInfos)+"\r\n");
+                    sender.Send(connId, sendData,sendData.Length);
+                }
+            }
+            return HandleResult.Ok;
+        }
+
+        private HandleResult TcpServer_OnSend(IServer sender, nint connId, byte[] data)
+        {
+            sbMsg.AppendLine($"发送消息:{Encoding.UTF8.GetString(data)}");
+            rtxtMsg = sbMsg.ToString();
+            return HandleResult.Ok;
+        }
+
+        private HandleResult TcpServer_OnClose(IServer sender, nint connId, SocketOperation socketOperation, int errorCode)
+        {
+            sbMsg.AppendLine($"connId:{connId}, socketOperation:{socketOperation}, errorCode:{errorCode}");
+            rtxtMsg = sbMsg.ToString();
+            return HandleResult.Ok;
+        }
+
+        private HandleResult TcpServer_OnShutdown(IServer sender)
+        {
+            rtxtMsg = sbMsg.ToString();
+            return HandleResult.Ok;
         }
 
         public bool CanOpenCamera { get; set; } = true;
+        public bool CanOneGrap { get; set; } = false;
+        public bool CanCloseCamera {  get; set; } = false;
+
         public void OpenCamera()
         {
             HOperatorSet.GenEmptyObj(out ho_Image);
@@ -92,6 +175,7 @@ namespace ScanKitWpf.ViewModels
                     "auto", _config.Camera.Name, 0, -1, out hv_AcqHandle);
                 CanOpenCamera = false;
                 CanOneGrap = true;
+                CanCloseCamera = true;
                 SetCameraParam();
                 HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
                 //SetBarCodeParam();
@@ -104,6 +188,8 @@ namespace ScanKitWpf.ViewModels
                 // 启动相机采集
                 HOperatorSet.GrabImageStart(hv_AcqHandle, -1);
 
+                tcpServer.Start();
+
                 //HOperatorSet.WaitSeconds(0.01);
                 //HOperatorSet.GrabImage(out ho_Image, hv_AcqHandle);
             }
@@ -112,19 +198,17 @@ namespace ScanKitWpf.ViewModels
                 MessageBox.Show(ex.Message,"相机错误",MessageBoxButton.OK,MessageBoxImage.Error);
             }
         }
-
-        public bool CanOneGrap { get; set; } = false;
       
-        public void OneGrap()
+        public void OneGrab()
         {
             sw.Restart();
             codeInfos.Clear();
             SoftTriggerAndCaptureImage();
             sw.Stop();
             //MessageBox.Show($"解析耗时:{sw.ElapsedMilliseconds}毫秒");
-            //sbMsg.AppendLine(JsonSerializer.Serialize(codeInfos));
-            sbMsg.AppendLine(codeInfos.DumpText($"解析耗时:{sw.ElapsedMilliseconds}毫秒", tableConfig:new TableConfig { ShowTableHeaders=false,ShowMemberTypes=false}));
-            //sbMsg.AppendLine($"解析耗时:{ sw.ElapsedMilliseconds}毫秒");
+            sbMsg.AppendLine(JsonSerializer.Serialize(codeInfos));
+            //sbMsg.AppendLine(codeInfos.DumpText($"解析耗时:{sw.ElapsedMilliseconds}毫秒", tableConfig:new TableConfig { ShowTableHeaders=false,ShowMemberTypes=false}));
+            sbMsg.AppendLine($"解析耗时:{ sw.ElapsedMilliseconds}毫秒");
             rtxtMsg=sbMsg.ToString();
         }
 
@@ -139,10 +223,31 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.CloseFramegrabber(hv_AcqHandle);
             CanOpenCamera = true;
             CanOneGrap = false;
+            CanCloseCamera= false;
+
+            tcpServer.Stop();
         }
 
-        public void OpenSocketServer()
+        public void SaveConfig()
         {
+            var configStr= JsonSerializer.Serialize(_config);
+            File.WriteAllText("appsettings.json",configStr);
+
+        }
+
+        public void ManualAnalyse()
+        {
+            if (!File.Exists(ImagePath))
+            {
+                MessageBox.Show("文件不存在，请输入有效的图片路径");
+                return;
+            }
+            HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
+            HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
+            HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", null, null, out hv_DMCodeHandle);
+            HOperatorSet.GenEmptyObj(out ho_Image);
+            HOperatorSet.ReadImage(out ho_Image, ImagePath);
+            AnalyseCode();
 
         }
 
@@ -196,8 +301,13 @@ namespace ScanKitWpf.ViewModels
             // 等待图像采集完成
             //HOperatorSet.WaitSeconds(1);
 
+            AnalyseCode();
+        }
+
+        private void AnalyseCode()
+        {
             HOperatorSet.GetImageSize(ho_Image, out hv_Width, out hv_Height);
-            HOperatorSet.SetPart(hWindow.HalconWindow,0,0,hv_Height-1,hv_Width-1);
+            HOperatorSet.SetPart(hWindow.HalconWindow, 0, 0, hv_Height - 1, hv_Width - 1);
 
             // 显示图像
             HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
@@ -210,7 +320,7 @@ namespace ScanKitWpf.ViewModels
         protected override void OnViewAttached(object view, object context)
         {
             base.OnViewAttached(view, context);
-            var frameworkElement=view as FrameworkElement;
+            var frameworkElement=view as System.Windows.FrameworkElement;
             if (frameworkElement ==null )
             {
                 return;

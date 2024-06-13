@@ -1,6 +1,8 @@
-﻿using HandyControl.Tools;
+﻿using Caliburn.Micro;
+using HandyControl.Tools;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -15,7 +17,13 @@ namespace ScanKitWpf.Models
 
         public BarCodeConfig BarCode { get; set; }
 
-        public short ServerPort { get; set; }
+        public required string ServerIp { get; set; }
+
+        public ushort ServerPort { get; set; }
+
+        public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
+
+        public TriggerConfig Trigger { get; set; }
     }
 
     public class ImgCenterPoint
@@ -50,5 +58,20 @@ namespace ScanKitWpf.Models
         public string Name { get; set; }
 
         public string Value { get; set; }
+    }
+
+    public class CodeConfig
+    {
+        public string CodeType { get; set; }
+        public bool IsChecked { get; set; }
+    }
+
+    public class TriggerConfig
+    {
+        public string TriggerMode { get; set; }
+
+        public string TriggerSource { get; set; }
+
+        public string TriggerCommand { get; set; }
     }
 }

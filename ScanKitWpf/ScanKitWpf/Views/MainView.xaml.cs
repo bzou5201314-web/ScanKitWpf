@@ -21,7 +21,7 @@ namespace ScanKitWpf.Views
     {
         public MainView()
         {
-            InitializeComponent();
+            //InitializeComponent();
         }
     }
 }
