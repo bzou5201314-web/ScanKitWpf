@@ -244,7 +244,7 @@ namespace ScanKitWpf.ViewModels
             }
             HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
             HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
-            HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", null, null, out hv_DMCodeHandle);
+            HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
             AnalyseCode();
@@ -286,6 +286,9 @@ namespace ScanKitWpf.ViewModels
         private void SetDMCodeParam()
         {
             HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "polarity", "dark_on_light");
+            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
+            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
+            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
         }
 
         private void SoftTriggerAndCaptureImage()
