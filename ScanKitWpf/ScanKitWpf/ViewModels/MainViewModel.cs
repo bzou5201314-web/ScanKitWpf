@@ -1,9 +1,8 @@
 ﻿using Caliburn.Micro;
-using Dumpify;
 using HalconDotNet;
 using HPSocket;
-using HPSocket.Base;
 using HPSocket.Tcp;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using PropertyChanged;
 using ScanKitWpf.DataReceiveAdapter;
@@ -13,18 +12,21 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 
 namespace ScanKitWpf.ViewModels
 {
     [AddINotifyPropertyChangedInterface]
-    public class MainViewModel:Screen
+    public class MainViewModel : Screen
     {
         readonly AppConfig _config;
+        readonly ILogger _logger;
 
-        public ObservableCollection<CodeConfig> ScanCodeConfig{get;set;}
+        public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
+
+        private bool barCodeChecked;
 
         StringBuilder stringBuilder = new StringBuilder();
         static HObject ho_Image = null;
@@ -38,7 +40,7 @@ namespace ScanKitWpf.ViewModels
         HTuple hv_Width = new HTuple();
         HTuple hv_Height = new HTuple();
 
-        HTuple hv_BarCodeHandle=-1;
+        HTuple hv_BarCodeHandle = -1;
         HTuple hv_BarCodeType;
         HTuple hv_DecodeStrings = new HTuple();
         HTuple hv_DecodeTypes = new HTuple();
@@ -47,21 +49,21 @@ namespace ScanKitWpf.ViewModels
         HTuple hv_Column = new HTuple();
 
         HTuple hv_QRCodeHandle = -1;
-        HTuple hv_QRCodeResultHandle=new HTuple();
+        HTuple hv_QRCodeResultHandle = new HTuple();
         HTuple hv_QRArea = new HTuple();
-        HTuple hv_QRRow= new HTuple();
+        HTuple hv_QRRow = new HTuple();
         HTuple hv_QRColumn = new HTuple();
-        HTuple hv_QRPointOrder= new HTuple();
+        HTuple hv_QRPointOrder = new HTuple();
 
-        HTuple hv_DMCodeHandle=-1;
-        HTuple hv_DMCodeResultHandle=new HTuple();
-        HTuple hv_DMArea =new HTuple();
-        HTuple hv_DMRow=new HTuple();
-        HTuple hv_DMColumn=new HTuple();
+        HTuple hv_DMCodeHandle = -1;
+        HTuple hv_DMCodeResultHandle = new HTuple();
+        HTuple hv_DMArea = new HTuple();
+        HTuple hv_DMRow = new HTuple();
+        HTuple hv_DMColumn = new HTuple();
         HTuple hv_DMPointOrder = new HTuple();
 
 
-        Stopwatch sw= new Stopwatch();
+        Stopwatch sw = new Stopwatch();
 
         readonly ITcpServer<string> tcpServer;
 
@@ -79,64 +81,75 @@ namespace ScanKitWpf.ViewModels
         }
 
 
-        public MainViewModel(IOptionsMonitor<AppConfig> config)
+        public MainViewModel(IOptionsMonitor<AppConfig> config, ILogger logger)
         {
             _config = config.CurrentValue;
             ScanCodeConfig = _config.ScanCodeConfig;
-            hv_BarCodeType = _config.BarCode.CodeType;
+            _logger = logger;
+            var barCodeTypes = new List<string>();
+            foreach (var barCodeType in ScanCodeConfig)
+            {
+                if (barCodeType.IsChecked && (barCodeType.CodeType == "Code 39" || barCodeType.CodeType == "Code 93" || barCodeType.CodeType == "Code 128"))
+                {
+                    barCodeTypes.Add(barCodeType.CodeType);
+                }
+            }
+            if (barCodeTypes.Count > 0)
+            {
+                barCodeChecked = true;
+            }
+            hv_BarCodeType = barCodeTypes.ToArray();
             sbMsg = new StringBuilder();
 
             tcpServer = new TcpServer<string>();
             tcpServer.SocketBufferSize = 4096;
-            tcpServer.Address=_config.ServerIp;
-            tcpServer.Port=_config.ServerPort;
-            tcpServer.DataReceiveAdapter=new TextDataReceiveAdapter();
+            tcpServer.Address = _config.ServerIp;
+            tcpServer.Port = _config.ServerPort;
+            tcpServer.DataReceiveAdapter = new TextDataReceiveAdapter();
 
-            tcpServer.OnPrepareListen+=TcpServer_OnPrepareListen;
-            tcpServer.OnAccept+=TcpServer_OnAccept;
-            tcpServer.OnParseRequestBody+=TcpServer_OnParseRequestBody;
-            tcpServer.OnSend+=TcpServer_OnSend;
-            tcpServer.OnClose+=TcpServer_OnClose;
-            tcpServer.OnShutdown+=TcpServer_OnShutdown;
+            tcpServer.OnPrepareListen += TcpServer_OnPrepareListen;
+            tcpServer.OnAccept += TcpServer_OnAccept;
+            tcpServer.OnParseRequestBody += TcpServer_OnParseRequestBody;
+            tcpServer.OnSend += TcpServer_OnSend;
+            tcpServer.OnClose += TcpServer_OnClose;
+            tcpServer.OnShutdown += TcpServer_OnShutdown;
 
         }
 
         private HandleResult TcpServer_OnPrepareListen(IServer sender, nint listen)
         {
-            sbMsg.AppendLine($"相机服务启动监听， 监听端口：{sender.Port}");
-            rtxtMsg = sbMsg.ToString();
+            AddMsg($"相机服务启动监听， 监听端口：{sender.Port}");
             return HandleResult.Ok;
         }
 
         private HandleResult TcpServer_OnAccept(IServer sender, nint connId, nint client)
         {
             sender.GetRemoteAddress(connId, out string ip, out ushort port);
-            sbMsg.AppendLine($"客户端：{ip},端口：{port} 建立连接");
-            rtxtMsg = sbMsg.ToString();
+            AddMsg($"客户端：{ip},端口：{port} 建立连接");
             return HandleResult.Ok;
         }
 
         private HandleResult TcpServer_OnParseRequestBody(ITcpServer sender, nint connId, string obj)
         {
-            sbMsg.AppendLine($"接收到消息:{obj}");
-            
+            AddMsg($"接收到消息:{obj}");
+
 
             if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
             {
-                sbMsg.AppendLine($"触发拍照解码");
+                AddMsg($"触发拍照解码");
                 try
                 {
                     OneGrab();
+                    AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
+                    var materialInfo = ParseCode();
+                    var sendData = JsonSerializer.Serialize(materialInfo);
+                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
+                    sender.Send(connId, sendBytes, sendBytes.Length);
+
                 }
                 catch (Exception ex)
                 {
-                    sbMsg.AppendLine($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                    rtxtMsg = sbMsg.ToString();
-                }
-                if (codeInfos.Count>0)
-                {
-                    var sendData = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(codeInfos)+"\r\n");
-                    sender.Send(connId, sendData,sendData.Length);
+                    AddMsg($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 }
             }
             return HandleResult.Ok;
@@ -144,27 +157,24 @@ namespace ScanKitWpf.ViewModels
 
         private HandleResult TcpServer_OnSend(IServer sender, nint connId, byte[] data)
         {
-            sbMsg.AppendLine($"发送消息:{Encoding.UTF8.GetString(data)}");
-            rtxtMsg = sbMsg.ToString();
+            AddMsg($"发送消息:{Encoding.UTF8.GetString(data)}");
             return HandleResult.Ok;
         }
 
         private HandleResult TcpServer_OnClose(IServer sender, nint connId, SocketOperation socketOperation, int errorCode)
         {
-            sbMsg.AppendLine($"connId:{connId}, socketOperation:{socketOperation}, errorCode:{errorCode}");
-            rtxtMsg = sbMsg.ToString();
+            AddMsg($"connId:{connId}, socketOperation:{socketOperation}, errorCode:{errorCode}");
             return HandleResult.Ok;
         }
 
         private HandleResult TcpServer_OnShutdown(IServer sender)
         {
-            rtxtMsg = sbMsg.ToString();
             return HandleResult.Ok;
         }
 
         public bool CanOpenCamera { get; set; } = true;
         public bool CanOneGrap { get; set; } = false;
-        public bool CanCloseCamera {  get; set; } = false;
+        public bool CanCloseCamera { get; set; } = false;
 
         public void OpenCamera()
         {
@@ -179,9 +189,9 @@ namespace ScanKitWpf.ViewModels
                 SetCameraParam();
                 HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
                 //SetBarCodeParam();
-                HOperatorSet.CreateDataCode2dModel("QR Code",null,null, out hv_QRCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
                 //SetQRCodeParam();
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200",null,null,out hv_DMCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", null, null, out hv_DMCodeHandle);
                 //SetDMCodeParam();
 
 
@@ -195,10 +205,10 @@ namespace ScanKitWpf.ViewModels
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message,"相机错误",MessageBoxButton.OK,MessageBoxImage.Error);
+                MessageBox.Show(ex.Message, "相机错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-      
+
         public void OneGrab()
         {
             sw.Restart();
@@ -206,49 +216,61 @@ namespace ScanKitWpf.ViewModels
             SoftTriggerAndCaptureImage();
             sw.Stop();
             //MessageBox.Show($"解析耗时:{sw.ElapsedMilliseconds}毫秒");
-            sbMsg.AppendLine(JsonSerializer.Serialize(codeInfos));
+            //AddMsg(JsonSerializer.Serialize(codeInfos));
             //sbMsg.AppendLine(codeInfos.DumpText($"解析耗时:{sw.ElapsedMilliseconds}毫秒", tableConfig:new TableConfig { ShowTableHeaders=false,ShowMemberTypes=false}));
-            sbMsg.AppendLine($"解析耗时:{ sw.ElapsedMilliseconds}毫秒");
-            rtxtMsg=sbMsg.ToString();
+            AddMsg($"解析数据：{JsonSerializer.Serialize(codeInfos)}， 耗时:{sw.ElapsedMilliseconds}毫秒");
         }
 
-        
+
 
         public void CloseCamera()
         {
-            if (ho_Image!=null)
+            if (ho_Image != null)
             {
                 ho_Image.Dispose();
             }
             HOperatorSet.CloseFramegrabber(hv_AcqHandle);
             CanOpenCamera = true;
             CanOneGrap = false;
-            CanCloseCamera= false;
+            CanCloseCamera = false;
 
             tcpServer.Stop();
         }
 
         public void SaveConfig()
         {
-            var configStr= JsonSerializer.Serialize(_config);
-            File.WriteAllText("appsettings.json",configStr);
+            var configStr = JsonSerializer.Serialize(_config);
+            File.WriteAllText("appsettings.json", configStr);
 
         }
 
         public void ManualAnalyse()
         {
+            codeInfos.Clear();
             if (!File.Exists(ImagePath))
             {
                 MessageBox.Show("文件不存在，请输入有效的图片路径");
                 return;
             }
-            HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
-            HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
-            HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+            if (hv_BarCodeHandle == null || hv_BarCodeHandle.Type != HTupleType.HANDLE)
+            {
+                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
+            }
+            if (hv_QRCodeHandle == null || hv_QRCodeHandle.Type != HTupleType.HANDLE)
+            {
+                HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
+            }
+            if (hv_DMCodeHandle == null || hv_DMCodeHandle.Type != HTupleType.HANDLE)
+            {
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+            }
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
+            sw.Restart();
             AnalyseCode();
-
+            sw.Stop();
+            AddMsg($"手动识别， 耗时：{sw.ElapsedMilliseconds} 毫秒");
+            AddMsg($"{JsonSerializer.Serialize(codeInfos)}");
         }
 
         private void SetCameraParam()
@@ -286,9 +308,9 @@ namespace ScanKitWpf.ViewModels
         private void SetDMCodeParam()
         {
             HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "polarity", "dark_on_light");
-            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
-            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
-            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
+            //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
+            //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
+            //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
         }
 
         private void SoftTriggerAndCaptureImage()
@@ -299,6 +321,15 @@ namespace ScanKitWpf.ViewModels
             // 执行软触发
             HOperatorSet.GrabImage(out ho_Image, hv_AcqHandle);
 
+            if (!string.IsNullOrEmpty(_config.PicSaveConfig.PicPath))
+            {
+                if (!Directory.Exists(_config.PicSaveConfig.PicPath))
+                {
+                    Directory.CreateDirectory(_config.PicSaveConfig.PicPath);
+                }
+                string fileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{_config.PicSaveConfig.PicType}";
+                HOperatorSet.WriteImage(ho_Image, _config.PicSaveConfig.PicType, 0, Path.Combine(_config.PicSaveConfig.PicPath, fileName));
+            }
             //HOperatorSet.ReadImage(out ho_Image, "d:/ng/20.bmp");
 
             // 等待图像采集完成
@@ -315,16 +346,26 @@ namespace ScanKitWpf.ViewModels
             // 显示图像
             HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
             HOperatorSet.SetDraw(hWindow.HalconWindow, "margin");
-            AnalyseBarCode();
-            AnalyseQrCode();
-            AnalyseDMCode();
+
+            if (barCodeChecked)
+            {
+                AnalyseBarCode();
+            }
+            if (ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
+            {
+                AnalyseQrCode();
+            }
+            if (ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
+            {
+                AnalyseDMCode();
+            }
         }
 
         protected override void OnViewAttached(object view, object context)
         {
             base.OnViewAttached(view, context);
-            var frameworkElement=view as System.Windows.FrameworkElement;
-            if (frameworkElement ==null )
+            var frameworkElement = view as System.Windows.FrameworkElement;
+            if (frameworkElement == null)
             {
                 return;
             }
@@ -341,8 +382,8 @@ namespace ScanKitWpf.ViewModels
 
             hv_DecodeStrings = new HTuple();
             hv_Area = new HTuple();
-            hv_Row=new HTuple();
-            hv_Column=new HTuple();
+            hv_Row = new HTuple();
+            hv_Column = new HTuple();
 
             HOperatorSet.FindBarCode(ho_Image, out ho_SybolRegions, hv_BarCodeHandle, hv_BarCodeType, out hv_DecodeStrings);
 
@@ -354,6 +395,7 @@ namespace ScanKitWpf.ViewModels
             hv_Area.UnpinTuple();
             hv_Row.UnpinTuple();
             hv_Column.UnpinTuple();
+            ho_SybolRegions.Dispose();
         }
 
         private void AnalyseQrCode()
@@ -364,10 +406,10 @@ namespace ScanKitWpf.ViewModels
 
             hv_DecodeStrings = new HTuple();
             hv_QRCodeResultHandle = new HTuple();
-            hv_QRArea=new HTuple();
-            hv_QRRow=new HTuple();
-            hv_QRColumn=new HTuple();
-            hv_QRPointOrder=new HTuple();
+            hv_QRArea = new HTuple();
+            hv_QRRow = new HTuple();
+            hv_QRColumn = new HTuple();
+            hv_QRPointOrder = new HTuple();
 
             HOperatorSet.FindDataCode2d(ho_Image, out ho_QRSybolRegions, hv_QRCodeHandle,
                 "stop_after_result_num", 16, out hv_QRCodeResultHandle, out hv_DecodeStrings);
@@ -377,11 +419,12 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.DispObj(ho_QRSybolRegions, hWindow.HalconWindow);
 
             hv_QRCodeResultHandle.UnpinTuple();
+            hv_DecodeStrings.UnpinTuple();
             hv_QRArea.UnpinTuple();
             hv_QRRow.UnpinTuple();
             hv_QRColumn.UnpinTuple();
             hv_QRPointOrder.UnpinTuple();
-            
+            ho_QRSybolRegions.Dispose();
         }
 
         private void AnalyseDMCode()
@@ -389,35 +432,45 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.GenEmptyObj(out ho_DMSybolRegions);
             HOperatorSet.SetColor(hWindow.HalconWindow, "red");
 
-            hv_DecodeStrings =new HTuple();
+            hv_DecodeStrings = new HTuple();
             hv_DMArea = new HTuple();
-            hv_DMRow=new HTuple();
-            hv_DMColumn=new HTuple();
-            hv_DMPointOrder=new HTuple();
-            HOperatorSet.FindDataCode2d(ho_Image, out ho_DMSybolRegions, hv_DMCodeHandle, "stop_after_result_num", 10, out hv_DMCodeResultHandle, out hv_DecodeStrings);
-            HOperatorSet.AreaCenterXld(ho_DMSybolRegions, out hv_DMArea, out hv_DMRow, out hv_DMColumn, out hv_DMPointOrder);
-            FitDMCodeInfo();
-            HOperatorSet.DispObj(ho_DMSybolRegions, hWindow.HalconWindow);
-
+            hv_DMRow = new HTuple();
+            hv_DMColumn = new HTuple();
+            hv_DMCodeResultHandle = new HTuple();
+            hv_DMPointOrder = new HTuple();
+            try
+            {
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_DMSybolRegions, hv_DMCodeHandle, "stop_after_result_num", 5, out hv_DMCodeResultHandle, out hv_DecodeStrings);
+                HOperatorSet.AreaCenterXld(ho_DMSybolRegions, out hv_DMArea, out hv_DMRow, out hv_DMColumn, out hv_DMPointOrder);
+                FitDMCodeInfo();
+                HOperatorSet.DispObj(ho_DMSybolRegions, hWindow.HalconWindow);
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"解析DM码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            }
             hv_DecodeStrings.UnpinTuple();
             hv_DMArea.UnpinTuple();
             hv_DMRow.UnpinTuple();
             hv_DMColumn.UnpinTuple();
+            hv_DMCodeResultHandle.UnpinTuple();
             hv_DMPointOrder.UnpinTuple();
+            ho_DMSybolRegions.Dispose();
+
         }
 
         private void FitBarCodeInfo()
         {
-            if (hv_Area.Length >0 && hv_Area.LArr.Length>0)
+            if (hv_Area.Length > 0 && hv_Area.LArr.Length > 0)
             {
-                for (int i = 0;i< hv_Area.LArr.Length;i++)
+                for (int i = 0; i < hv_Area.LArr.Length; i++)
                 {
                     var codeInfo = new CodeInfo();
                     codeInfo.CodeType = hv_DecodeTypes.SArr[i];
                     codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX =Math.Round(hv_Column.DArr[i],2);
-                    codeInfo.CenterY =Math.Round( hv_Row.DArr[i],2);
-                    codeInfo.Angle = GetAngle(codeInfo.CenterX,codeInfo.CenterY);
+                    codeInfo.CenterX = Math.Round(hv_Column.DArr[i], 2);
+                    codeInfo.CenterY = Math.Round(hv_Row.DArr[i], 2);
+                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
                     codeInfos.Add(codeInfo);
                 }
             }
@@ -425,7 +478,7 @@ namespace ScanKitWpf.ViewModels
 
         private void FitQrCodeInfo()
         {
-            if (hv_QRArea.Length>0 && hv_QRArea.DArr.Length>0)
+            if (hv_QRArea.Length > 0 && hv_QRArea.DArr.Length > 0)
             {
                 for (int i = 0; i < hv_QRArea.DArr.Length; i++)
                 {
@@ -434,7 +487,7 @@ namespace ScanKitWpf.ViewModels
                     codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
                     codeInfo.CenterX = Math.Round(hv_QRColumn.DArr[i], 2);
                     codeInfo.CenterY = Math.Round(hv_QRRow.DArr[i], 2);
-                    codeInfo.Angle=GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
                     codeInfos.Add(codeInfo);
                 }
             }
@@ -442,16 +495,16 @@ namespace ScanKitWpf.ViewModels
 
         private void FitDMCodeInfo()
         {
-            if (hv_DMArea.Length>0 && hv_DMArea.DArr.Length>0)
+            if (hv_DMArea.Length > 0 && hv_DMArea.DArr.Length > 0)
             {
                 for (int i = 0; i < hv_DMArea.DArr.Length; i++)
                 {
-                    var codeInfo=new CodeInfo();
+                    var codeInfo = new CodeInfo();
                     codeInfo.CodeType = "DM";
                     codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX =Math.Round( hv_DMColumn.DArr[i],2);
-                    codeInfo.CenterY =Math.Round( hv_DMRow.DArr[i],2);
-                    codeInfo.Angle=GetAngle(codeInfo.CenterX,codeInfo.CenterY);
+                    codeInfo.CenterX = Math.Round(hv_DMColumn.DArr[i], 2);
+                    codeInfo.CenterY = Math.Round(hv_DMRow.DArr[i], 2);
+                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
                     codeInfos.Add(codeInfo);
                 }
             }
@@ -459,12 +512,49 @@ namespace ScanKitWpf.ViewModels
 
         private double GetAngle(double x, double y)
         {
-            return Math.Round( Math.Atan2(y-_config.ImgCenter.Center_Y, x-_config.ImgCenter.Center_X) * 180 / Math.PI, 2);
+            return Math.Round(Math.Atan2(y - _config.ImgCenter.Center_Y, x - _config.ImgCenter.Center_X) * 180 / Math.PI, 2);
         }
 
         public void ScrollToEnd(object sender)
         {
             (sender as TextBox).ScrollToEnd();
+        }
+
+        private void AddMsg(string msg)
+        {
+            sbMsg.AppendLine($"{DateTime.Now:yy-MM-dd HH:mm:ss.fff}: {msg}");
+            txtMsg.Dispatcher.BeginInvoke(() =>
+            {
+                txtMsg.Text = sbMsg.ToString();
+            });
+            _logger.LogInformation(msg);
+        }
+
+        private MaterialInfoModel ParseCode()
+        {
+            var returnModel = new MaterialInfoModel();
+            try
+            {
+
+
+                var matchedCodes = codeInfos.Where(c => c.CodeType == "DM" && c.CodeValue.Split("{").Length == 9).ToList();
+                if (matchedCodes.Count == 1)
+                {
+                    var matchedCode = matchedCodes.First();
+                    var splitCodes = matchedCode.CodeValue.Split("{");
+                    returnModel.SN = splitCodes[8];
+                    returnModel.PN = splitCodes[0];
+                    returnModel.Qty = Convert.ToInt32(splitCodes[1]);
+                    returnModel.DC = splitCodes[4];
+                    returnModel.Supplier = splitCodes[3];
+                    returnModel.OtherBarcode = matchedCode.CodeValue;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"解析物料信息失败，{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            }
+            return returnModel;
         }
     }
 }

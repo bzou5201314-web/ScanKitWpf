@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -8,9 +9,12 @@ using System.Windows.Threading;
 using Caliburn.Micro;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NLog.Extensions.Logging;
 using ScanKitWpf.Models;
 using ScanKitWpf.ViewModels;
+using ScanKitWpf.Extensions;
 
 namespace ScanKitWpf
 {
@@ -42,6 +46,7 @@ namespace ScanKitWpf
            // _container.RegisterInstance(typeof(IConfiguration), "", config);
             
             services.AddOptions<AppConfig>().Bind(config);
+            services.AddNLogServices(config);
             //_container.Instance<IOptions<AppConfig>>(services.AddOptions<AppConfig>().Bind(config.GetSection("RotateCoordinate")));
             //_container.Singleton<MainViewModel>();
         }

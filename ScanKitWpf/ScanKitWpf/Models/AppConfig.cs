@@ -15,7 +15,7 @@ namespace ScanKitWpf.Models
 
         public CameraInfo Camera { get; set; }
 
-        public BarCodeConfig BarCode { get; set; }
+        public PicConfig PicSaveConfig { get; set;}
 
         public required string ServerIp { get; set; }
 
@@ -46,18 +46,10 @@ namespace ScanKitWpf.Models
         public float Factor { get; set; }
     }
 
-    public class BarCodeConfig
+    public class PicConfig
     {
-        public string[] CodeType { get; set; }
-        public List<BarCodeParam> Params { get; set; }
-
-    }
-
-    public class BarCodeParam
-    {
-        public string Name { get; set; }
-
-        public string Value { get; set; }
+        public string PicType { get; set; }
+        public string PicPath { get; set; }
     }
 
     public class CodeConfig
