@@ -331,6 +331,18 @@ namespace ScanKitWpf.ViewModels
                 }
                 string fileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{_config.PicSaveConfig.PicType}";
                 HOperatorSet.WriteImage(ho_Image, _config.PicSaveConfig.PicType, 0, Path.Combine(_config.PicSaveConfig.PicPath, fileName));
+                Task.Run(() =>
+                {
+                    try
+                    {
+                        File.Copy(Path.Combine(_config.PicSaveConfig.PicPath, fileName), Path.Combine(_config.PicSaveConfig.PicPath, "1.jpg"), true);
+                    }
+                    catch (Exception ex)
+                    {
+                        AddMsg($"程序异常：{ex.Message}");
+                    }
+
+                });
             }
             //HOperatorSet.ReadImage(out ho_Image, "d:/ng/20.bmp");
 
