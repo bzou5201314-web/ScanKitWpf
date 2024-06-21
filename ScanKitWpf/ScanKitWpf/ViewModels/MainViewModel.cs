@@ -23,6 +23,7 @@ namespace ScanKitWpf.ViewModels
     {
         readonly AppConfig _config;
         readonly ILogger _logger;
+        public string Title { get; set; }
 
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
@@ -86,6 +87,7 @@ namespace ScanKitWpf.ViewModels
             _config = config.CurrentValue;
             ScanCodeConfig = _config.ScanCodeConfig;
             _logger = logger;
+            Title = _config.Title;
             var barCodeTypes = new List<string>();
             foreach (var barCodeType in ScanCodeConfig)
             {
@@ -141,9 +143,9 @@ namespace ScanKitWpf.ViewModels
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    var materialInfo = ParseCode();
-                    var sendData = JsonSerializer.Serialize(materialInfo);
-                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
+                    //var materialInfo = ParseCode();
+                    var sendData = JsonSerializer.Serialize(codeInfos);
+                    var sendBytes = Encoding.UTF8.GetBytes(sendData+"\r\n");
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
                 }
@@ -535,8 +537,6 @@ namespace ScanKitWpf.ViewModels
             var returnModel = new MaterialInfoModel();
             try
             {
-
-
                 var matchedCodes = codeInfos.Where(c => c.CodeType == "DM" && c.CodeValue.Split("{").Length == 9).ToList();
                 if (matchedCodes.Count == 1)
                 {

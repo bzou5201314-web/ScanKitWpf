@@ -11,6 +11,7 @@ namespace ScanKitWpf.Models
 {
     public class AppConfig
     {
+        public string Title { get; set; }
         public ImgCenterPoint ImgCenter { get; set; }
 
         public CameraInfo Camera { get; set; }
