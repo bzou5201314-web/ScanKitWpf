@@ -23,45 +23,57 @@ namespace ScanKitWpf.ViewModels
     {
         readonly AppConfig _config;
         readonly ILogger _logger;
-        public string Title { get; set; }
+        public override string DisplayName { get; set; }
+
+        public string ServerIp { get; set; }
+        public int ServerPort { get; set; }
 
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
         private bool barCodeChecked;
 
         StringBuilder stringBuilder = new StringBuilder();
-        static HObject ho_Image = null;
-        HObject ho_SybolRegions = null;
-        HObject ho_QRSybolRegions = null;
-        HObject ho_DMSybolRegions = null;
-        static HTuple hv_AcqHandle = null;
+        HObject ho_Image;
+        HObject ho_SybolRegions;
+        HObject ho_QRSybolRegions;
+        HObject ho_DMSybolRegions;
+        HTuple hv_AcqHandle = null;
         HSmartWindowControlWPF hWindow = null;
         List<CodeInfo> codeInfos = new List<CodeInfo>();
 
-        HTuple hv_Width = new HTuple();
-        HTuple hv_Height = new HTuple();
+        HTuple hv_Width;
+        HTuple hv_Height;
 
         HTuple hv_BarCodeHandle = -1;
         HTuple hv_BarCodeType;
-        HTuple hv_DecodeStrings = new HTuple();
-        HTuple hv_DecodeTypes = new HTuple();
-        HTuple hv_Area = new HTuple();
-        HTuple hv_Row = new HTuple();
-        HTuple hv_Column = new HTuple();
+        HTuple hv_DecodeStrings;
+        HTuple hv_DecodeTypes;
+        HTuple hv_Area;
+        HTuple hv_Row;
+        HTuple hv_Column;
 
         HTuple hv_QRCodeHandle = -1;
-        HTuple hv_QRCodeResultHandle = new HTuple();
-        HTuple hv_QRArea = new HTuple();
-        HTuple hv_QRRow = new HTuple();
-        HTuple hv_QRColumn = new HTuple();
-        HTuple hv_QRPointOrder = new HTuple();
+        HTuple hv_QRCodeResultHandle;
+        HTuple hv_QRArea;
+        HTuple hv_QRRow;
+        HTuple hv_QRColumn;
+        HTuple hv_QRPointOrder;
 
         HTuple hv_DMCodeHandle = -1;
-        HTuple hv_DMCodeResultHandle = new HTuple();
-        HTuple hv_DMArea = new HTuple();
-        HTuple hv_DMRow = new HTuple();
-        HTuple hv_DMColumn = new HTuple();
-        HTuple hv_DMPointOrder = new HTuple();
+        HTuple hv_DMCodeResultHandle;
+        HTuple hv_DMArea;
+        HTuple hv_DMRow;
+        HTuple hv_DMColumn;
+        HTuple hv_DMPointOrder;
+
+        HTuple hv_PDF417CodeHandle = -1;
+        HObject ho_PDF417SybolRegions;
+        HTuple hv_PDF417CodeResultHandle;
+        HTuple hv_PDF417Area;
+        HTuple hv_PDF417Row;
+        HTuple hv_PDF417Column;
+        HTuple hv_PDF417PointOrder;
+
 
 
         Stopwatch sw = new Stopwatch();
@@ -87,7 +99,9 @@ namespace ScanKitWpf.ViewModels
             _config = config.CurrentValue;
             ScanCodeConfig = _config.ScanCodeConfig;
             _logger = logger;
-            Title = _config.Title;
+            DisplayName = _config.Title;
+            ServerIp = _config.ServerIp;
+            ServerPort = _config.ServerPort;
             var barCodeTypes = new List<string>();
             foreach (var barCodeType in ScanCodeConfig)
             {
@@ -143,9 +157,10 @@ namespace ScanKitWpf.ViewModels
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    //var materialInfo = ParseCode();
+                    var materialInfo = ParseCode();
                     var sendData = JsonSerializer.Serialize(codeInfos);
-                    var sendBytes = Encoding.UTF8.GetBytes(sendData+"\r\n");
+                    //var sendData = "{\"SN\":\"20240603000380\",\"PN\":\"2924011226\",\"Qty\":16000,\"Lot\":\"N/A\",\"DC\":\"2423\",\"Supplier\":\"70D050\",\"OtherBarcode\":\"2924011226{16000{PCE{70D050{2423{03{N/A{N/A{20240603000380\",\"RotAngle\":-34}";
+                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
                 }
@@ -180,7 +195,6 @@ namespace ScanKitWpf.ViewModels
 
         public void OpenCamera()
         {
-            HOperatorSet.GenEmptyObj(out ho_Image);
             try
             {
                 HOperatorSet.OpenFramegrabber("MVision", 1, 1, 0, 0, 0, 0, "progressive", 8, "default", -1, "false",
@@ -266,6 +280,10 @@ namespace ScanKitWpf.ViewModels
             {
                 HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
             }
+            if (hv_PDF417CodeHandle==null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
+            {
+                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
+            }
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
             sw.Restart();
@@ -317,9 +335,6 @@ namespace ScanKitWpf.ViewModels
 
         private void SoftTriggerAndCaptureImage()
         {
-            ho_Image.Dispose();
-            hv_Width.UnpinTuple();
-            hv_Height.UnpinTuple();
             // 执行软触发
             HOperatorSet.GrabImage(out ho_Image, hv_AcqHandle);
 
@@ -344,10 +359,6 @@ namespace ScanKitWpf.ViewModels
 
                 });
             }
-            //HOperatorSet.ReadImage(out ho_Image, "d:/ng/20.bmp");
-
-            // 等待图像采集完成
-            //HOperatorSet.WaitSeconds(1);
 
             AnalyseCode();
         }
@@ -361,6 +372,9 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
             HOperatorSet.SetDraw(hWindow.HalconWindow, "margin");
 
+            hv_Width.Dispose();
+            hv_Height.Dispose();
+
             if (barCodeChecked)
             {
                 AnalyseBarCode();
@@ -373,6 +387,11 @@ namespace ScanKitWpf.ViewModels
             {
                 AnalyseDMCode();
             }
+            if (ScanCodeConfig.Any(p=>p.CodeType=="PDF417"&&p.IsChecked))
+            {
+                AnalysePDF417Code();
+            }
+            ho_Image.Dispose();
         }
 
         protected override void OnViewAttached(object view, object context)
@@ -390,14 +409,8 @@ namespace ScanKitWpf.ViewModels
 
         private void AnalyseBarCode()
         {
-            HOperatorSet.GenEmptyObj(out ho_SybolRegions);
             HOperatorSet.SetColor(hWindow.HalconWindow, "green");//设置条码框选的颜色为单选色框
             HOperatorSet.SetLineWidth(hWindow.HalconWindow, 1);//设置框的大小范围
-
-            hv_DecodeStrings = new HTuple();
-            hv_Area = new HTuple();
-            hv_Row = new HTuple();
-            hv_Column = new HTuple();
 
             HOperatorSet.FindBarCode(ho_Image, out ho_SybolRegions, hv_BarCodeHandle, hv_BarCodeType, out hv_DecodeStrings);
 
@@ -405,53 +418,39 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.AreaCenter(ho_SybolRegions, out hv_Area, out hv_Row, out hv_Column);
             FitBarCodeInfo();
             HOperatorSet.DispObj(ho_SybolRegions, hWindow.HalconWindow);
-            hv_DecodeStrings.UnpinTuple();
-            hv_Area.UnpinTuple();
-            hv_Row.UnpinTuple();
-            hv_Column.UnpinTuple();
+
+            hv_DecodeStrings.Dispose();
+            hv_DecodeTypes.Dispose();
+            hv_Area.Dispose();
+            hv_Row.Dispose();
+            hv_Column.Dispose();
             ho_SybolRegions.Dispose();
         }
 
         private void AnalyseQrCode()
         {
-            HOperatorSet.GenEmptyObj(out ho_QRSybolRegions);
             HOperatorSet.SetColor(hWindow.HalconWindow, "blue");
             HOperatorSet.SetLineWidth(hWindow.HalconWindow, 2);
 
-            hv_DecodeStrings = new HTuple();
-            hv_QRCodeResultHandle = new HTuple();
-            hv_QRArea = new HTuple();
-            hv_QRRow = new HTuple();
-            hv_QRColumn = new HTuple();
-            hv_QRPointOrder = new HTuple();
-
             HOperatorSet.FindDataCode2d(ho_Image, out ho_QRSybolRegions, hv_QRCodeHandle,
-                "stop_after_result_num", 16, out hv_QRCodeResultHandle, out hv_DecodeStrings);
+                "stop_after_result_num", 10, out hv_QRCodeResultHandle, out hv_DecodeStrings);
 
             HOperatorSet.AreaCenterXld(ho_QRSybolRegions, out hv_QRArea, out hv_QRRow, out hv_QRColumn, out hv_QRPointOrder);
             FitQrCodeInfo();
             HOperatorSet.DispObj(ho_QRSybolRegions, hWindow.HalconWindow);
 
-            hv_QRCodeResultHandle.UnpinTuple();
-            hv_DecodeStrings.UnpinTuple();
-            hv_QRArea.UnpinTuple();
-            hv_QRRow.UnpinTuple();
-            hv_QRColumn.UnpinTuple();
-            hv_QRPointOrder.UnpinTuple();
+            hv_QRCodeResultHandle.Dispose();
+            hv_DecodeStrings.Dispose();
+            hv_QRArea.Dispose();
+            hv_QRRow.Dispose();
+            hv_QRColumn.Dispose();
+            hv_QRPointOrder.Dispose();
             ho_QRSybolRegions.Dispose();
         }
 
         private void AnalyseDMCode()
         {
-            HOperatorSet.GenEmptyObj(out ho_DMSybolRegions);
             HOperatorSet.SetColor(hWindow.HalconWindow, "red");
-
-            hv_DecodeStrings = new HTuple();
-            hv_DMArea = new HTuple();
-            hv_DMRow = new HTuple();
-            hv_DMColumn = new HTuple();
-            hv_DMCodeResultHandle = new HTuple();
-            hv_DMPointOrder = new HTuple();
             try
             {
                 HOperatorSet.FindDataCode2d(ho_Image, out ho_DMSybolRegions, hv_DMCodeHandle, "stop_after_result_num", 5, out hv_DMCodeResultHandle, out hv_DecodeStrings);
@@ -463,14 +462,38 @@ namespace ScanKitWpf.ViewModels
             {
                 AddMsg($"解析DM码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
-            hv_DecodeStrings.UnpinTuple();
-            hv_DMArea.UnpinTuple();
-            hv_DMRow.UnpinTuple();
-            hv_DMColumn.UnpinTuple();
-            hv_DMCodeResultHandle.UnpinTuple();
-            hv_DMPointOrder.UnpinTuple();
+            hv_DecodeStrings.Dispose();
+            hv_DMArea.Dispose();
+            hv_DMRow.Dispose();
+            hv_DMColumn.Dispose();
+            hv_DMCodeResultHandle.Dispose();
+            hv_DMPointOrder.Dispose();
             ho_DMSybolRegions.Dispose();
 
+        }
+
+        private void AnalysePDF417Code()
+        {
+            HOperatorSet.SetColor(hWindow.HalconWindow, "cyan");
+            try
+            {
+                HOperatorSet.FindDataCode2d(ho_Image, out ho_PDF417SybolRegions, hv_PDF417CodeHandle, "stop_after_result_num", 5, out hv_PDF417CodeResultHandle, out hv_DecodeStrings);
+                HOperatorSet.AreaCenterXld(ho_PDF417SybolRegions, out hv_PDF417Area, out hv_PDF417Row, out hv_PDF417Column, out hv_PDF417PointOrder);
+                FitPDF417CodeInfo();
+                HOperatorSet.DispObj(ho_PDF417SybolRegions, hWindow.HalconWindow);
+
+                ho_PDF417SybolRegions.Dispose();
+                hv_PDF417CodeResultHandle.Dispose();
+                hv_DecodeStrings.Dispose();
+                hv_PDF417Area.Dispose();
+                hv_PDF417Row.Dispose();
+                hv_PDF417Column.Dispose();
+                hv_PDF417PointOrder.Dispose();
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"解析PDF417码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            }
         }
 
         private void FitBarCodeInfo()
@@ -518,6 +541,23 @@ namespace ScanKitWpf.ViewModels
                     codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
                     codeInfo.CenterX = Math.Round(hv_DMColumn.DArr[i], 2);
                     codeInfo.CenterY = Math.Round(hv_DMRow.DArr[i], 2);
+                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                    codeInfos.Add(codeInfo);
+                }
+            }
+        }
+
+        private void FitPDF417CodeInfo()
+        {
+            if (hv_PDF417Area.Length > 0 && hv_PDF417Area.DArr.Length >0)
+            {
+                for (int i = 0; i < hv_PDF417Area.DArr.Length; i++)
+                {
+                    var codeInfo = new CodeInfo();
+                    codeInfo.CodeType = "PDF417";
+                    codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
+                    codeInfo.CenterX = Math.Round(hv_PDF417Column.DArr[i], 2);
+                    codeInfo.CenterY = Math.Round(hv_PDF417Row.DArr[i], 2);
                     codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
                     codeInfos.Add(codeInfo);
                 }

@@ -74,8 +74,10 @@
                                 <ColumnDefinition Width="1*"/>
                                 <ColumnDefinition Width="2*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="端口：" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
-                            <TextBox x:Name="ServerPort" Grid.Column="1" Grid.Row="0" Margin="2,2,0,0" VerticalAlignment="Center"></TextBox>
+                            <TextBlock Text="IP：" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
+                            <TextBox x:Name="ServerIp" Grid.Column="1" Grid.Row="0" Margin="2,2,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Text="端口：" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
+                            <TextBox x:Name="ServerPort" Grid.Column="1" Grid.Row="1" Margin="2,2,0,0" VerticalAlignment="Center"></TextBox>
                         </Grid>
                     </hc:TabItem>
                     <hc:TabItem Header="图片识别">
