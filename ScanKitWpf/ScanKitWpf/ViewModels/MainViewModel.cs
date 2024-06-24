@@ -158,8 +158,7 @@ namespace ScanKitWpf.ViewModels
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
                     var materialInfo = ParseCode();
-                    var sendData = JsonSerializer.Serialize(codeInfos);
-                    //var sendData = "{\"SN\":\"20240603000380\",\"PN\":\"2924011226\",\"Qty\":16000,\"Lot\":\"N/A\",\"DC\":\"2423\",\"Supplier\":\"70D050\",\"OtherBarcode\":\"2924011226{16000{PCE{70D050{2423{03{N/A{N/A{20240603000380\",\"RotAngle\":-34}";
+                    var sendData = JsonSerializer.Serialize(materialInfo);
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
