@@ -28,6 +28,8 @@ namespace ScanKitWpf.ViewModels
         public string ServerIp { get; set; }
         public int ServerPort { get; set; }
 
+        private int currReelSize=7;
+
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
         private bool barCodeChecked;
@@ -149,8 +151,39 @@ namespace ScanKitWpf.ViewModels
         {
             AddMsg($"接收到消息:{obj}");
 
+            var request = JsonSerializer.Deserialize<RequestModel<ReelSize>>(obj);
+            if (request==null)
+            {
+                AddMsg("发送的报文无法解析，请检查！");
+                return HandleResult.Ok;
+            }
+            currReelSize = request.Data.MatSize;
+            if (string.Compare(request.MsgType,"GetReelID",true)==0)
+            {
+                try
+                {
+                    OneGrab();
+                    AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
 
-            if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
+                    //var materialInfo = ParseCode();
+                    var sendData = JsonSerializer.Serialize(codeInfos);
+                    //var sendData = "{\"SN\":\"20240603000380\",\"PN\":\"2924011226\",\"Qty\":16000,\"Lot\":\"N/A\",\"DC\":\"2423\",\"Supplier\":\"70D050\",\"OtherBarcode\":\"2924011226{16000{PCE{70D050{2423{03{N/A{N/A{20240603000380\",\"RotAngle\":-34}";
+                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
+                    sender.Send(connId, sendBytes, sendBytes.Length);
+
+                }
+                catch (Exception ex)
+                {
+                    AddMsg($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+                }
+            }
+            //else if (string.Compare(request.MsgType, "GetReelSize", true) == 0)
+            //{
+
+            //}
+            
+
+            /*if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
             {
                 AddMsg($"触发拍照解码");
                 try
@@ -169,7 +202,7 @@ namespace ScanKitWpf.ViewModels
                 {
                     AddMsg($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 }
-            }
+            }*/
             return HandleResult.Ok;
         }
 
@@ -567,7 +600,9 @@ namespace ScanKitWpf.ViewModels
 
         private double GetAngle(double x, double y)
         {
-            return Math.Round(Math.Atan2(y - _config.ImgCenter.Center_Y, x - _config.ImgCenter.Center_X) * 180 / Math.PI, 2);
+            var rotateCenterX = currReelSize == 15 ? _config.ImgCenter.Rotate_15_Center_X : currReelSize == 13 ? _config.ImgCenter.Rotate_13_Center_X : _config.ImgCenter.Rotate_7_Center_X;
+            var rotateCenterY = currReelSize == 15 ? _config.ImgCenter.Rotate_15_Center_Y : currReelSize == 13 ? _config.ImgCenter.Rotate_13_Center_Y : _config.ImgCenter.Rotate_7_Center_Y;
+            return Math.Round(Math.Atan2(y - rotateCenterY, x - rotateCenterX) * 180 / Math.PI, 2);
         }
 
         public void ScrollToEnd(object sender)

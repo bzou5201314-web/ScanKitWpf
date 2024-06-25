@@ -29,9 +29,17 @@ namespace ScanKitWpf.Models
 
     public class ImgCenterPoint
     {
-        public double Center_X { get; set; }
+        public double Rotate_7_Center_X { get; set; }
 
-        public double Center_Y { get; set; }
+        public double Rotate_7_Center_Y { get; set; }
+
+        public double Rotate_13_Center_X { get; set; }
+
+        public double Rotate_13_Center_Y { get; set; }
+
+        public double Rotate_15_Center_X { get; set; }
+
+        public double Rotate_15_Center_Y { get; set; }
     }
 
     public class CameraInfo
