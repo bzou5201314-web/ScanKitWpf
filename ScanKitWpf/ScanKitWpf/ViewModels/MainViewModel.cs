@@ -151,39 +151,8 @@ namespace ScanKitWpf.ViewModels
         {
             AddMsg($"接收到消息:{obj}");
 
-            var request = JsonSerializer.Deserialize<RequestModel<ReelSize>>(obj);
-            if (request==null)
-            {
-                AddMsg("发送的报文无法解析，请检查！");
-                return HandleResult.Ok;
-            }
-            currReelSize = request.Data.MatSize;
-            if (string.Compare(request.MsgType,"GetReelID",true)==0)
-            {
-                try
-                {
-                    OneGrab();
-                    AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
 
-                    //var materialInfo = ParseCode();
-                    var sendData = JsonSerializer.Serialize(codeInfos);
-                    //var sendData = "{\"SN\":\"20240603000380\",\"PN\":\"2924011226\",\"Qty\":16000,\"Lot\":\"N/A\",\"DC\":\"2423\",\"Supplier\":\"70D050\",\"OtherBarcode\":\"2924011226{16000{PCE{70D050{2423{03{N/A{N/A{20240603000380\",\"RotAngle\":-34}";
-                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
-                    sender.Send(connId, sendBytes, sendBytes.Length);
-
-                }
-                catch (Exception ex)
-                {
-                    AddMsg($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-                }
-            }
-            //else if (string.Compare(request.MsgType, "GetReelSize", true) == 0)
-            //{
-
-            //}
-            
-
-            /*if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
+            if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
             {
                 AddMsg($"触发拍照解码");
                 try
@@ -202,7 +171,7 @@ namespace ScanKitWpf.ViewModels
                 {
                     AddMsg($"解码出错:{ex.Message}{Environment.NewLine}{ex.StackTrace}");
                 }
-            }*/
+            }
             return HandleResult.Ok;
         }
 
