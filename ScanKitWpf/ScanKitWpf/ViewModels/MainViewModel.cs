@@ -11,7 +11,9 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Unicode;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -33,6 +35,11 @@ namespace ScanKitWpf.ViewModels
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
         private bool barCodeChecked;
+
+        JsonSerializerOptions options = new JsonSerializerOptions
+        {
+            Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
+        };
 
         StringBuilder stringBuilder = new StringBuilder();
         HObject ho_Image;
@@ -159,10 +166,9 @@ namespace ScanKitWpf.ViewModels
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    
-                    //var materialInfo = ParseCode();
-                    var sendData = JsonSerializer.Serialize(codeInfos);
-                    //var sendData = "{\"SN\":\"20240603000380\",\"PN\":\"2924011226\",\"Qty\":16000,\"Lot\":\"N/A\",\"DC\":\"2423\",\"Supplier\":\"70D050\",\"OtherBarcode\":\"2924011226{16000{PCE{70D050{2423{03{N/A{N/A{20240603000380\",\"RotAngle\":-34}";
+                    var materialInfo = ParseCode();
+
+                    var sendData = JsonSerializer.Serialize(materialInfo, options);
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
@@ -208,10 +214,22 @@ namespace ScanKitWpf.ViewModels
                 SetCameraParam();
                 HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
                 //SetBarCodeParam();
-                HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
-                //SetQRCodeParam();
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", null, null, out hv_DMCodeHandle);
-                //SetDMCodeParam();
+                if (hv_BarCodeHandle == null || hv_BarCodeHandle.Type != HTupleType.HANDLE)
+                {
+                    HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
+                }
+                if (hv_QRCodeHandle == null || hv_QRCodeHandle.Type != HTupleType.HANDLE)
+                {
+                    HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
+                }
+                if (hv_DMCodeHandle == null || hv_DMCodeHandle.Type != HTupleType.HANDLE)
+                {
+                    HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+                }
+                if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
+                {
+                    HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
+                }
 
 
                 // 启动相机采集
@@ -225,6 +243,7 @@ namespace ScanKitWpf.ViewModels
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message, "相机错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                AddMsg($"相机错误：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
 
@@ -258,7 +277,7 @@ namespace ScanKitWpf.ViewModels
 
         public void SaveConfig()
         {
-            var configStr = JsonSerializer.Serialize(_config);
+            var configStr = JsonSerializer.Serialize(_config, options);
             File.WriteAllText("appsettings.json", configStr);
 
         }
@@ -283,7 +302,7 @@ namespace ScanKitWpf.ViewModels
             {
                 HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
             }
-            if (hv_PDF417CodeHandle==null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
+            if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
             {
                 HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
             }
@@ -293,7 +312,7 @@ namespace ScanKitWpf.ViewModels
             AnalyseCode();
             sw.Stop();
             AddMsg($"手动识别， 耗时：{sw.ElapsedMilliseconds} 毫秒");
-            AddMsg($"{JsonSerializer.Serialize(codeInfos)}");
+            AddMsg($"{JsonSerializer.Serialize(codeInfos, options)}");
         }
 
         private void SetCameraParam()
@@ -371,8 +390,15 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.GetImageSize(ho_Image, out hv_Width, out hv_Height);
             HOperatorSet.SetPart(hWindow.HalconWindow, 0, 0, hv_Height - 1, hv_Width - 1);
 
+            HObject ho_ImageScaled;
+
+            HOperatorSet.ScaleImageMax(ho_Image, out ho_ImageScaled);
+
+            HObject ho_ImageEmphasize;
+            HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, _config.Camera.Mask, _config.Camera.Mask, _config.Camera.Factor);//增强图片的对比度
+
             // 显示图像
-            HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
+            HOperatorSet.DispObj(ho_ImageEmphasize, hWindow.HalconWindow);
             HOperatorSet.SetDraw(hWindow.HalconWindow, "margin");
 
             hv_Width.Dispose();
@@ -380,21 +406,23 @@ namespace ScanKitWpf.ViewModels
 
             if (barCodeChecked)
             {
-                AnalyseBarCode();
+                AnalyseBarCode(ho_ImageEmphasize);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
             {
-                AnalyseQrCode();
+                AnalyseQrCode(ho_ImageEmphasize);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
             {
-                AnalyseDMCode();
+                AnalyseDMCode(ho_ImageEmphasize);
             }
-            if (ScanCodeConfig.Any(p=>p.CodeType=="PDF417"&&p.IsChecked))
+            if (ScanCodeConfig.Any(p => p.CodeType == "PDF417" && p.IsChecked))
             {
-                AnalysePDF417Code();
+                AnalysePDF417Code(ho_ImageEmphasize);
             }
             ho_Image.Dispose();
+            ho_ImageScaled.Dispose();
+            ho_ImageEmphasize.Dispose();
         }
 
         protected override void OnViewAttached(object view, object context)
@@ -410,12 +438,12 @@ namespace ScanKitWpf.ViewModels
             txtMsg = frameworkElement.FindName("rtxtMsg") as TextBox;
         }
 
-        private void AnalyseBarCode()
+        private void AnalyseBarCode(HObject hoImage)
         {
             HOperatorSet.SetColor(hWindow.HalconWindow, "green");//设置条码框选的颜色为单选色框
             HOperatorSet.SetLineWidth(hWindow.HalconWindow, 1);//设置框的大小范围
 
-            HOperatorSet.FindBarCode(ho_Image, out ho_SybolRegions, hv_BarCodeHandle, hv_BarCodeType, out hv_DecodeStrings);
+            HOperatorSet.FindBarCode(hoImage, out ho_SybolRegions, hv_BarCodeHandle, hv_BarCodeType, out hv_DecodeStrings);
 
             HOperatorSet.GetBarCodeResult(hv_BarCodeHandle, "all", "decoded_types", out hv_DecodeTypes);
             HOperatorSet.AreaCenter(ho_SybolRegions, out hv_Area, out hv_Row, out hv_Column);
@@ -430,12 +458,12 @@ namespace ScanKitWpf.ViewModels
             ho_SybolRegions.Dispose();
         }
 
-        private void AnalyseQrCode()
+        private void AnalyseQrCode(HObject hoImage)
         {
             HOperatorSet.SetColor(hWindow.HalconWindow, "blue");
             HOperatorSet.SetLineWidth(hWindow.HalconWindow, 2);
 
-            HOperatorSet.FindDataCode2d(ho_Image, out ho_QRSybolRegions, hv_QRCodeHandle,
+            HOperatorSet.FindDataCode2d(hoImage, out ho_QRSybolRegions, hv_QRCodeHandle,
                 "stop_after_result_num", 10, out hv_QRCodeResultHandle, out hv_DecodeStrings);
 
             HOperatorSet.AreaCenterXld(ho_QRSybolRegions, out hv_QRArea, out hv_QRRow, out hv_QRColumn, out hv_QRPointOrder);
@@ -451,12 +479,12 @@ namespace ScanKitWpf.ViewModels
             ho_QRSybolRegions.Dispose();
         }
 
-        private void AnalyseDMCode()
+        private void AnalyseDMCode(HObject hoImage)
         {
             HOperatorSet.SetColor(hWindow.HalconWindow, "red");
             try
             {
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_DMSybolRegions, hv_DMCodeHandle, "stop_after_result_num", 5, out hv_DMCodeResultHandle, out hv_DecodeStrings);
+                HOperatorSet.FindDataCode2d(hoImage, out ho_DMSybolRegions, hv_DMCodeHandle, "stop_after_result_num", 5, out hv_DMCodeResultHandle, out hv_DecodeStrings);
                 HOperatorSet.AreaCenterXld(ho_DMSybolRegions, out hv_DMArea, out hv_DMRow, out hv_DMColumn, out hv_DMPointOrder);
                 FitDMCodeInfo();
                 HOperatorSet.DispObj(ho_DMSybolRegions, hWindow.HalconWindow);
@@ -475,12 +503,12 @@ namespace ScanKitWpf.ViewModels
 
         }
 
-        private void AnalysePDF417Code()
+        private void AnalysePDF417Code(HObject hoImage)
         {
             HOperatorSet.SetColor(hWindow.HalconWindow, "cyan");
             try
             {
-                HOperatorSet.FindDataCode2d(ho_Image, out ho_PDF417SybolRegions, hv_PDF417CodeHandle, "stop_after_result_num", 5, out hv_PDF417CodeResultHandle, out hv_DecodeStrings);
+                HOperatorSet.FindDataCode2d(hoImage, out ho_PDF417SybolRegions, hv_PDF417CodeHandle, "stop_after_result_num", 5, out hv_PDF417CodeResultHandle, out hv_DecodeStrings);
                 HOperatorSet.AreaCenterXld(ho_PDF417SybolRegions, out hv_PDF417Area, out hv_PDF417Row, out hv_PDF417Column, out hv_PDF417PointOrder);
                 FitPDF417CodeInfo();
                 HOperatorSet.DispObj(ho_PDF417SybolRegions, hWindow.HalconWindow);
@@ -501,70 +529,99 @@ namespace ScanKitWpf.ViewModels
 
         private void FitBarCodeInfo()
         {
-            if (hv_Area.Length > 0 && hv_Area.LArr.Length > 0)
+            try
             {
-                for (int i = 0; i < hv_Area.LArr.Length; i++)
+                if (hv_Area.Length > 0 && hv_Area.LArr.Length > 0)
                 {
-                    var codeInfo = new CodeInfo();
-                    codeInfo.CodeType = hv_DecodeTypes.SArr[i];
-                    codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX = Math.Round(hv_Column.DArr[i], 2);
-                    codeInfo.CenterY = Math.Round(hv_Row.DArr[i], 2);
-                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
-                    codeInfos.Add(codeInfo);
+                    for (int i = 0; i < hv_Area.LArr.Length; i++)
+                    {
+                        var codeInfo = new CodeInfo();
+                        codeInfo.CodeType = hv_DecodeTypes.SArr[i];
+                        codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
+                        codeInfo.CenterX = Math.Round(hv_Column.DArr[i], 2);
+                        codeInfo.CenterY = Math.Round(hv_Row.DArr[i], 2);
+                        codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                        codeInfos.Add(codeInfo);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"填充条形码码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
 
         private void FitQrCodeInfo()
         {
-            if (hv_QRArea.Length > 0 && hv_QRArea.DArr.Length > 0)
+            try
             {
-                for (int i = 0; i < hv_QRArea.DArr.Length; i++)
+                if (hv_QRArea.Length > 0 && hv_QRArea.DArr.Length > 0)
                 {
-                    var codeInfo = new CodeInfo();
-                    codeInfo.CodeType = "QR Code";
-                    codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX = Math.Round(hv_QRColumn.DArr[i], 2);
-                    codeInfo.CenterY = Math.Round(hv_QRRow.DArr[i], 2);
-                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
-                    codeInfos.Add(codeInfo);
+                    for (int i = 0; i < hv_QRArea.DArr.Length; i++)
+                    {
+                        var codeInfo = new CodeInfo();
+                        codeInfo.CodeType = "QR Code";
+                        codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
+                        codeInfo.CenterX = Math.Round(hv_QRColumn.DArr[i], 2);
+                        codeInfo.CenterY = Math.Round(hv_QRRow.DArr[i], 2);
+                        codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                        codeInfos.Add(codeInfo);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"填充QR码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
 
         private void FitDMCodeInfo()
         {
-            if (hv_DMArea.Length > 0 && hv_DMArea.DArr.Length > 0)
+            try
             {
-                for (int i = 0; i < hv_DMArea.DArr.Length; i++)
+                if (hv_DMArea.Length > 0 && hv_DMArea.DArr.Length > 0)
                 {
-                    var codeInfo = new CodeInfo();
-                    codeInfo.CodeType = "DM";
-                    codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX = Math.Round(hv_DMColumn.DArr[i], 2);
-                    codeInfo.CenterY = Math.Round(hv_DMRow.DArr[i], 2);
-                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
-                    codeInfos.Add(codeInfo);
+                    for (int i = 0; i < hv_DMArea.DArr.Length; i++)
+                    {
+                        var codeInfo = new CodeInfo();
+                        codeInfo.CodeType = "DM";
+                        codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
+                        codeInfo.CenterX = Math.Round(hv_DMColumn.DArr[i], 2);
+                        codeInfo.CenterY = Math.Round(hv_DMRow.DArr[i], 2);
+                        codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                        codeInfos.Add(codeInfo);
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                AddMsg($"填充DM码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
 
         private void FitPDF417CodeInfo()
         {
-            if (hv_PDF417Area.Length > 0 && hv_PDF417Area.DArr.Length >0)
+            try
             {
-                for (int i = 0; i < hv_PDF417Area.DArr.Length; i++)
+                if (hv_PDF417Area.Length > 0 && hv_PDF417Area.DArr.Length > 0)
                 {
-                    var codeInfo = new CodeInfo();
-                    codeInfo.CodeType = "PDF417";
-                    codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                    codeInfo.CenterX = Math.Round(hv_PDF417Column.DArr[i], 2);
-                    codeInfo.CenterY = Math.Round(hv_PDF417Row.DArr[i], 2);
-                    codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
-                    codeInfos.Add(codeInfo);
+                    for (int i = 0; i < hv_PDF417Area.DArr.Length; i++)
+                    {
+                        var codeInfo = new CodeInfo();
+                        codeInfo.CodeType = "PDF417";
+                        codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
+                        codeInfo.CenterX = Math.Round(hv_PDF417Column.DArr[i], 2);
+                        codeInfo.CenterY = Math.Round(hv_PDF417Row.DArr[i], 2);
+                        codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                        codeInfos.Add(codeInfo);
+                    }
                 }
             }
+            catch (Exception ex)
+            {
+                AddMsg($"填充PDF417码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
+            }
+            
         }
 
         private double GetAngle(double x, double y)
@@ -576,17 +633,32 @@ namespace ScanKitWpf.ViewModels
 
         public void ScrollToEnd(object sender)
         {
-            (sender as TextBox).ScrollToEnd();
+            //(sender as TextBox).ScrollToEnd();
         }
 
+        static object locker = new object();
         private void AddMsg(string msg)
         {
-            sbMsg.AppendLine($"{DateTime.Now:yy-MM-dd HH:mm:ss.fff}: {msg}");
-            txtMsg.Dispatcher.BeginInvoke(() =>
+            try
             {
-                txtMsg.Text = sbMsg.ToString();
-            });
-            _logger.LogInformation(msg);
+                string str;
+                lock (locker)
+                {
+                    sbMsg.AppendLine($"{DateTime.Now:yy-MM-dd HH:mm:ss.fff}: {msg}");
+                    str = sbMsg.ToString();
+                }
+                txtMsg.Dispatcher.BeginInvoke(() =>
+                {
+                    txtMsg.Text = str;
+                    txtMsg.ScrollToEnd();
+                });
+                _logger.LogInformation(msg);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, ex.Message);
+            }
+
         }
 
         private MaterialInfoModel ParseCode()
@@ -594,14 +666,14 @@ namespace ScanKitWpf.ViewModels
             var returnModel = new MaterialInfoModel();
             try
             {
-                var matchedCodes = codeInfos.Where(c => c.CodeType == "DM" && c.CodeValue.Split("{").Length == 9).ToList();
+                var matchedCodes = codeInfos.Where(c => (c.CodeType == "DM" || c.CodeType == "QR Code") && c.CodeValue.Split("{").Length == 9).ToList();
                 if (matchedCodes.Count == 1)
                 {
                     var matchedCode = matchedCodes.First();
                     var splitCodes = matchedCode.CodeValue.Split("{");
                     returnModel.SN = splitCodes[8];
                     returnModel.PN = splitCodes[0];
-                    returnModel.Qty = Convert.ToInt32(splitCodes[1]);
+                    returnModel.Qty = Convert.ToInt32(float.Parse(splitCodes[1]));
                     returnModel.DC = splitCodes[4];
                     returnModel.Supplier = splitCodes[3];
                     returnModel.OtherBarcode = matchedCode.CodeValue;

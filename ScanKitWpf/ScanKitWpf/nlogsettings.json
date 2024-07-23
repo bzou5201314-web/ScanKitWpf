@@ -1,0 +1,39 @@
+{
+  "NLog": {
+    "autoReload": true,
+    "throwConfigExceptions": true,
+    "internalLogLevel": "Info",
+    "internalLogFile": "${basedir}/internal-nlog.txt",
+    "extensions": [
+      { "assembly": "NLog.Extensions.Logging" }
+    ],
+    "variables": {
+      "LogFolder": "${basedir}/logs",
+      "LogName": "${event-properties:filename}${when:when='${event-properties:filename}'=='':else=_}${shortdate}.log"
+    },
+    //"time": {
+    //  "type": "AccurateUTC"
+    //},
+    "default-wrapper": {
+      "type": "AsyncWrapper",
+      "overflowAction": "Block"
+    },
+    "targets": {
+      "all-file": {
+        "type": "File",
+        "fileName": "${LogFolder}/${LogName}",
+        "archiveEvery": "Day",
+        "archiveNumbering": "Rolling",
+        "maxArchiveFiles": "1",
+        "layout": "${longdate}|${level:uppercase=true}|${logger}|${message} ${exception:format=tostring}"
+      }
+    },
+    "rules": [
+      {
+        "logger": "*",
+        "minLevel": "Info",
+        "writeTo": "all-file"
+      }
+    ]
+  }
+}
