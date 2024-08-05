@@ -166,9 +166,9 @@ namespace ScanKitWpf.ViewModels
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    var materialInfo = ParseCode();
+                    //var materialInfo = ParseCode();
 
-                    var sendData = JsonSerializer.Serialize(materialInfo, options);
+                    var sendData = JsonSerializer.Serialize(codeInfos, options);
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
