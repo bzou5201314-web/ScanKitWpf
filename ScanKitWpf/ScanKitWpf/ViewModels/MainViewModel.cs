@@ -143,7 +143,7 @@ namespace ScanKitWpf.ViewModels
 
         private HandleResult TcpServer_OnPrepareListen(IServer sender, nint listen)
         {
-            AddMsg($"相机服务启动监听， 监听端口：{sender.Port}");
+            AddMsg($"相机服务启动监听,监听IP：{sender.Address}， 监听端口：{sender.Port}");
             return HandleResult.Ok;
         }
 
