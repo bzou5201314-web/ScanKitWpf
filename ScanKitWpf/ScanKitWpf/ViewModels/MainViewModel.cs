@@ -678,6 +678,10 @@ namespace ScanKitWpf.ViewModels
                     returnModel.Supplier = splitCodes[3];
                     returnModel.OtherBarcode = matchedCode.CodeValue;
                 }
+                else if (matchedCodes.Count > 1)
+                {
+                    returnModel.SN = "M";
+                }
             }
             catch (Exception ex)
             {
