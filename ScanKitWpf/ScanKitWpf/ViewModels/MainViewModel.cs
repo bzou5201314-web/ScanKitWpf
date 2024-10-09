@@ -304,7 +304,7 @@ namespace ScanKitWpf.ViewModels
             }
             if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
             {
-                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
+                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "enhanced_recognition", out hv_PDF417CodeHandle);
             }
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
@@ -328,22 +328,23 @@ namespace ScanKitWpf.ViewModels
 
         private void SetBarCodeParam()
         {
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_min", 0.6);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "check_char", "present");
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "min_identical_scanlines", 2);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "contrast_min", 5);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "persistence", 1);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "start_stop_tolerance", "low");
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "stop_after_result_num", 0);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh_abs", 0);
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh", 0.2);//* 0.5
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "num_scanlines", 10);//* 50
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_min", 0.6);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "check_char", "present");
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "min_identical_scanlines", 2);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "contrast_min", 5);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "persistence", 1);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "start_stop_tolerance", "low");
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "stop_after_result_num", 0);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh_abs", 0);
+            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh", 0.5);//* 0.5
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "num_scanlines", 10);//* 50
+            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "quiet_zone", "true");
         }
 
         private void SetQRCodeParam()
         {
             HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "polarity", "dark_on_light");
-            //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "string_encoding", "utf8");
+            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "position_pattern_min", 2);
             //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "stop_after_result_num", 10);
         }
 
@@ -398,7 +399,7 @@ namespace ScanKitWpf.ViewModels
             HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, _config.Camera.Mask, _config.Camera.Mask, _config.Camera.Factor);//增强图片的对比度
 
             // 显示图像
-            HOperatorSet.DispObj(ho_ImageEmphasize, hWindow.HalconWindow);
+            HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
             HOperatorSet.SetDraw(hWindow.HalconWindow, "margin");
 
             hv_Width.Dispose();
@@ -410,15 +411,15 @@ namespace ScanKitWpf.ViewModels
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
             {
-                AnalyseQrCode(ho_ImageEmphasize);
+                AnalyseQrCode(ho_Image);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
             {
-                AnalyseDMCode(ho_ImageEmphasize);
+                AnalyseDMCode(ho_Image);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "PDF417" && p.IsChecked))
             {
-                AnalysePDF417Code(ho_ImageEmphasize);
+                AnalysePDF417Code(ho_Image);
             }
             ho_Image.Dispose();
             ho_ImageScaled.Dispose();
