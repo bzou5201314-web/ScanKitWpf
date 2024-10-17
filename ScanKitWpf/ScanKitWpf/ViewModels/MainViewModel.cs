@@ -38,7 +38,8 @@ namespace ScanKitWpf.ViewModels
 
         JsonSerializerOptions options = new JsonSerializerOptions
         {
-            Encoder = JavaScriptEncoder.Create(UnicodeRanges.All)
+            Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            //WriteIndented = true
         };
 
         StringBuilder stringBuilder = new StringBuilder();
@@ -46,14 +47,14 @@ namespace ScanKitWpf.ViewModels
         HObject ho_SybolRegions;
         HObject ho_QRSybolRegions;
         HObject ho_DMSybolRegions;
-        HTuple hv_AcqHandle = null;
+        static HTuple hv_AcqHandle = null;
         HSmartWindowControlWPF hWindow = null;
         List<CodeInfo> codeInfos = new List<CodeInfo>();
 
         HTuple hv_Width;
         HTuple hv_Height;
 
-        HTuple hv_BarCodeHandle = -1;
+        HTuple hv_BarCodeHandle;
         HTuple hv_BarCodeType;
         HTuple hv_DecodeStrings;
         HTuple hv_DecodeTypes;
@@ -61,21 +62,21 @@ namespace ScanKitWpf.ViewModels
         HTuple hv_Row;
         HTuple hv_Column;
 
-        HTuple hv_QRCodeHandle = -1;
+        HTuple hv_QRCodeHandle;
         HTuple hv_QRCodeResultHandle;
         HTuple hv_QRArea;
         HTuple hv_QRRow;
         HTuple hv_QRColumn;
         HTuple hv_QRPointOrder;
 
-        HTuple hv_DMCodeHandle = -1;
+        HTuple hv_DMCodeHandle;
         HTuple hv_DMCodeResultHandle;
         HTuple hv_DMArea;
         HTuple hv_DMRow;
         HTuple hv_DMColumn;
         HTuple hv_DMPointOrder;
 
-        HTuple hv_PDF417CodeHandle = -1;
+        HTuple hv_PDF417CodeHandle;
         HObject ho_PDF417SybolRegions;
         HTuple hv_PDF417CodeResultHandle;
         HTuple hv_PDF417Area;
@@ -199,7 +200,7 @@ namespace ScanKitWpf.ViewModels
         }
 
         public bool CanOpenCamera { get; set; } = true;
-        public bool CanOneGrap { get; set; } = false;
+        public bool CanOneGrab { get; set; } = false;
         public bool CanCloseCamera { get; set; } = false;
 
         public void OpenCamera()
@@ -209,22 +210,22 @@ namespace ScanKitWpf.ViewModels
                 HOperatorSet.OpenFramegrabber("MVision", 1, 1, 0, 0, 0, 0, "progressive", 8, "default", -1, "false",
                     "auto", _config.Camera.Name, 0, -1, out hv_AcqHandle);
                 CanOpenCamera = false;
-                CanOneGrap = true;
+                CanOneGrab = true;
                 CanCloseCamera = true;
                 SetCameraParam();
-                HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
-                //SetBarCodeParam();
-                if (hv_BarCodeHandle == null || hv_BarCodeHandle.Type != HTupleType.HANDLE)
+                if (hv_BarCodeHandle == null || hv_BarCodeHandle.H==0)
                 {
                     HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
                 }
-                if (hv_QRCodeHandle == null || hv_QRCodeHandle.Type != HTupleType.HANDLE)
+                if (hv_QRCodeHandle == null || hv_QRCodeHandle.H==0)
                 {
-                    HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
+                    HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out hv_QRCodeHandle);
+                    SetQRCodeParam();
                 }
-                if (hv_DMCodeHandle == null || hv_DMCodeHandle.Type != HTupleType.HANDLE)
+                if (hv_DMCodeHandle == null || hv_DMCodeHandle.H == 0)
                 {
-                    HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+                    HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "standard_recognition", out hv_DMCodeHandle);
+                    SetDMCodeParam();
                 }
                 if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
                 {
@@ -256,7 +257,7 @@ namespace ScanKitWpf.ViewModels
             //MessageBox.Show($"解析耗时:{sw.ElapsedMilliseconds}毫秒");
             //AddMsg(JsonSerializer.Serialize(codeInfos));
             //sbMsg.AppendLine(codeInfos.DumpText($"解析耗时:{sw.ElapsedMilliseconds}毫秒", tableConfig:new TableConfig { ShowTableHeaders=false,ShowMemberTypes=false}));
-            AddMsg($"解析数据：{JsonSerializer.Serialize(codeInfos)}， 耗时:{sw.ElapsedMilliseconds}毫秒");
+            AddMsg($"解析数据：{JsonSerializer.Serialize(codeInfos,options)}， 耗时:{sw.ElapsedMilliseconds}毫秒");
         }
 
 
@@ -267,9 +268,36 @@ namespace ScanKitWpf.ViewModels
             {
                 ho_Image.Dispose();
             }
-            HOperatorSet.CloseFramegrabber(hv_AcqHandle);
+
+            if (hv_BarCodeHandle!=null)
+            {
+                HOperatorSet.ClearBarCodeModel(hv_BarCodeHandle);
+                hv_BarCodeHandle.Dispose();
+            }
+            if (hv_QRCodeHandle!=null)
+            {
+                HOperatorSet.ClearDataCode2dModel(hv_QRCodeHandle);
+                hv_QRCodeHandle.Dispose();
+            }
+            if (hv_DMCodeHandle != null)
+            {
+                HOperatorSet.ClearDataCode2dModel(hv_DMCodeHandle);
+                hv_DMCodeHandle.Dispose();
+            }
+            if(hv_PDF417CodeHandle != null)
+            {
+                HOperatorSet.ClearDataCode2dModel(hv_PDF417CodeHandle);
+                hv_PDF417CodeHandle.Dispose();
+            }
+
+            if (hv_AcqHandle!=null)
+            {
+                HOperatorSet.CloseFramegrabber(hv_AcqHandle);
+                hv_AcqHandle.Dispose();
+            }
+            
             CanOpenCamera = true;
-            CanOneGrap = false;
+            CanOneGrab = false;
             CanCloseCamera = false;
 
             tcpServer.Stop();
@@ -277,7 +305,7 @@ namespace ScanKitWpf.ViewModels
 
         public void SaveConfig()
         {
-            var configStr = JsonSerializer.Serialize(_config, options);
+            var configStr = JsonSerializer.Serialize(_config, new JsonSerializerOptions { Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true });
             File.WriteAllText("appsettings.json", configStr);
 
         }
@@ -290,21 +318,23 @@ namespace ScanKitWpf.ViewModels
                 MessageBox.Show("文件不存在，请输入有效的图片路径");
                 return;
             }
-            if (hv_BarCodeHandle == null || hv_BarCodeHandle.Type != HTupleType.HANDLE)
+            if (hv_BarCodeHandle == null || hv_BarCodeHandle.H == 0)
             {
                 HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
             }
-            if (hv_QRCodeHandle == null || hv_QRCodeHandle.Type != HTupleType.HANDLE)
+            if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("QR Code", null, null, out hv_QRCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out hv_QRCodeHandle);
+                SetQRCodeParam();
             }
-            if (hv_DMCodeHandle == null || hv_DMCodeHandle.Type != HTupleType.HANDLE)
+            if (hv_DMCodeHandle == null || hv_DMCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "standard_recognition", out hv_DMCodeHandle);
+                SetDMCodeParam();
             }
-            if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
+            if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "enhanced_recognition", out hv_PDF417CodeHandle);
+                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
             }
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
@@ -312,6 +342,7 @@ namespace ScanKitWpf.ViewModels
             AnalyseCode();
             sw.Stop();
             AddMsg($"手动识别， 耗时：{sw.ElapsedMilliseconds} 毫秒");
+            
             AddMsg($"{JsonSerializer.Serialize(codeInfos, options)}");
         }
 
@@ -345,7 +376,9 @@ namespace ScanKitWpf.ViewModels
         {
             HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "polarity", "dark_on_light");
             HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "position_pattern_min", 2);
-            //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "stop_after_result_num", 10);
+            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_min", 4);
+            //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_max", 100);
+            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "string_encoding", "raw");
         }
 
         private void SetDMCodeParam()
@@ -354,6 +387,7 @@ namespace ScanKitWpf.ViewModels
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
+            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "string_encoding", "locale");
         }
 
         private void SoftTriggerAndCaptureImage()
@@ -395,11 +429,8 @@ namespace ScanKitWpf.ViewModels
 
             HOperatorSet.ScaleImageMax(ho_Image, out ho_ImageScaled);
 
-            HObject ho_ImageEmphasize;
-            HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, _config.Camera.Mask, _config.Camera.Mask, _config.Camera.Factor);//增强图片的对比度
-
             // 显示图像
-            HOperatorSet.DispObj(ho_Image, hWindow.HalconWindow);
+            HOperatorSet.DispObj(ho_ImageScaled, hWindow.HalconWindow);
             HOperatorSet.SetDraw(hWindow.HalconWindow, "margin");
 
             hv_Width.Dispose();
@@ -407,23 +438,39 @@ namespace ScanKitWpf.ViewModels
 
             if (barCodeChecked)
             {
-                AnalyseBarCode(ho_ImageEmphasize);
+                if (_config.Camera.MulPasing)
+                {
+                    for (int i = 3; i <= 7; i+=2)
+                    {
+                        for (float j = 0.3f; j <= 2; j+=0.4f)
+                        {
+                            HObject ho_ImageEmphasize;
+                            HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, i,i, j);//增强图片的对比度
+                            AnalyseBarCode(ho_ImageEmphasize);
+                            ho_ImageEmphasize.Dispose();
+                        }
+                    }
+                }
+                else
+                {
+                    AnalyseBarCode(ho_ImageScaled);
+                }
+
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
             {
-                AnalyseQrCode(ho_Image);
+                AnalyseQrCode(ho_ImageScaled);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
             {
-                AnalyseDMCode(ho_Image);
+                AnalyseDMCode(ho_ImageScaled);
             }
             if (ScanCodeConfig.Any(p => p.CodeType == "PDF417" && p.IsChecked))
             {
-                AnalysePDF417Code(ho_Image);
+                AnalysePDF417Code(ho_ImageScaled);
             }
             ho_Image.Dispose();
             ho_ImageScaled.Dispose();
-            ho_ImageEmphasize.Dispose();
         }
 
         protected override void OnViewAttached(object view, object context)
@@ -539,10 +586,13 @@ namespace ScanKitWpf.ViewModels
                         var codeInfo = new CodeInfo();
                         codeInfo.CodeType = hv_DecodeTypes.SArr[i];
                         codeInfo.CodeValue = hv_DecodeStrings.SArr[i];
-                        codeInfo.CenterX = Math.Round(hv_Column.DArr[i], 2);
-                        codeInfo.CenterY = Math.Round(hv_Row.DArr[i], 2);
-                        codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
-                        codeInfos.Add(codeInfo);
+                        if (!codeInfos.Any(p => p.CodeType == codeInfo.CodeType && p.CodeValue == codeInfo.CodeValue))
+                        {
+                            codeInfo.CenterX = Math.Round(hv_Column.DArr[i], 2);
+                            codeInfo.CenterY = Math.Round(hv_Row.DArr[i], 2);
+                            codeInfo.Angle = GetAngle(codeInfo.CenterX, codeInfo.CenterY);
+                            codeInfos.Add(codeInfo);
+                        }
                     }
                 }
             }

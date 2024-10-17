@@ -53,6 +53,9 @@ namespace ScanKitWpf.Models
         public float Mask { get; set; }
 
         public float Factor { get; set; }
+
+        //多次识别，提高条形码识别率
+        public bool MulPasing { get; set; }
     }
 
     public class PicConfig
