@@ -321,6 +321,7 @@ namespace ScanKitWpf.ViewModels
             if (hv_BarCodeHandle == null || hv_BarCodeHandle.H == 0)
             {
                 HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
+                SetBarCodeParam();
             }
             if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
             {
@@ -359,17 +360,18 @@ namespace ScanKitWpf.ViewModels
 
         private void SetBarCodeParam()
         {
-            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_min", 0.6);
+            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_min", 0.6);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_max", 256);
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "check_char", "present");
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "min_identical_scanlines", 2);
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "contrast_min", 5);
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "persistence", 1);
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "start_stop_tolerance", "low");
             //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "stop_after_result_num", 0);
-            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh_abs", 0);
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh_abs", 10);
             HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "meas_thresh", 0.5);//* 0.5
-            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "num_scanlines", 10);//* 50
-            HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "quiet_zone", "true");
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "num_scanlines", 30);//* 50
+            //HOperatorSet.SetBarCodeParam(hv_BarCodeHandle, "element_size_variable", "true");
         }
 
         private void SetQRCodeParam()
@@ -442,7 +444,7 @@ namespace ScanKitWpf.ViewModels
                 {
                     for (int i = 3; i <= 7; i+=2)
                     {
-                        for (float j = 0.3f; j <= 2; j+=0.4f)
+                        for (float j = 0.3f; j <= 2; j+=0.2f)
                         {
                             HObject ho_ImageEmphasize;
                             HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, i,i, j);//增强图片的对比度
@@ -450,6 +452,12 @@ namespace ScanKitWpf.ViewModels
                             ho_ImageEmphasize.Dispose();
                         }
                     }
+
+                    HObject ho_ImageRotate;
+                    HOperatorSet.RotateImage(ho_ImageScaled, out ho_ImageRotate, 330, "constant");
+                    AnalyseBarCode(ho_ImageRotate);
+                    ho_ImageRotate.Dispose();
+
                 }
                 else
                 {
