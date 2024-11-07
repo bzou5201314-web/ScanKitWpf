@@ -30,7 +30,7 @@ namespace ScanKitWpf.ViewModels
         public string ServerIp { get; set; }
         public int ServerPort { get; set; }
 
-        private int currReelSize=7;
+        private int currReelSize = 7;
 
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
@@ -103,6 +103,15 @@ namespace ScanKitWpf.ViewModels
             set { _cameraConnected = value; }
         }
 
+        /// <summary>
+        /// 图片保存路径
+        /// </summary>
+        string picFileFolder = "";
+        /// <summary>
+        /// 文件名
+        /// </summary>
+        string picFileName = "";
+
 
         public MainViewModel(IOptionsMonitor<AppConfig> config, ILogger logger)
         {
@@ -126,6 +135,8 @@ namespace ScanKitWpf.ViewModels
             }
             hv_BarCodeType = barCodeTypes.ToArray();
             sbMsg = new StringBuilder();
+
+            System.Threading.Timer timerClearPic = new System.Threading.Timer(ClearSavedImages, null, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1));
 
             tcpServer = new TcpServer<string>();
             tcpServer.SocketBufferSize = 4096;
@@ -167,9 +178,20 @@ namespace ScanKitWpf.ViewModels
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    //var materialInfo = ParseCode();
-
-                    var sendData = JsonSerializer.Serialize(codeInfos, options);
+                    //识别唯一码用这段
+                    var materialInfo = ParseCode();
+                    if ((string.IsNullOrWhiteSpace(materialInfo.SN) || materialInfo.SN == "M") && File.Exists(Path.Combine(picFileFolder, picFileName)))
+                    {
+                        if (!Directory.Exists(Path.Combine(picFileFolder, "NG")))
+                        {
+                            Directory.CreateDirectory(Path.Combine(picFileFolder, "NG"));
+                        }
+                        File.Move(Path.Combine(picFileFolder, picFileName), Path.Combine(picFileFolder, "NG", picFileName));
+                    }
+                    var sendData = JsonSerializer.Serialize(materialInfo, options);
+                    
+                    //返回识别所有条码用这段
+                    //var sendData = JsonSerializer.Serialize(sendData, options);
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
@@ -213,11 +235,11 @@ namespace ScanKitWpf.ViewModels
                 CanOneGrab = true;
                 CanCloseCamera = true;
                 SetCameraParam();
-                if (hv_BarCodeHandle == null || hv_BarCodeHandle.H==0)
+                if (hv_BarCodeHandle == null || hv_BarCodeHandle.H == 0)
                 {
                     HOperatorSet.CreateBarCodeModel(new HTuple(), new HTuple(), out hv_BarCodeHandle);
                 }
-                if (hv_QRCodeHandle == null || hv_QRCodeHandle.H==0)
+                if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
                 {
                     HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out hv_QRCodeHandle);
                     SetQRCodeParam();
@@ -257,7 +279,7 @@ namespace ScanKitWpf.ViewModels
             //MessageBox.Show($"解析耗时:{sw.ElapsedMilliseconds}毫秒");
             //AddMsg(JsonSerializer.Serialize(codeInfos));
             //sbMsg.AppendLine(codeInfos.DumpText($"解析耗时:{sw.ElapsedMilliseconds}毫秒", tableConfig:new TableConfig { ShowTableHeaders=false,ShowMemberTypes=false}));
-            AddMsg($"解析数据：{JsonSerializer.Serialize(codeInfos,options)}， 耗时:{sw.ElapsedMilliseconds}毫秒");
+            AddMsg($"解析数据：{JsonSerializer.Serialize(codeInfos, options)}， 耗时:{sw.ElapsedMilliseconds}毫秒");
         }
 
 
@@ -269,12 +291,12 @@ namespace ScanKitWpf.ViewModels
                 ho_Image.Dispose();
             }
 
-            if (hv_BarCodeHandle!=null)
+            if (hv_BarCodeHandle != null)
             {
                 HOperatorSet.ClearBarCodeModel(hv_BarCodeHandle);
                 hv_BarCodeHandle.Dispose();
             }
-            if (hv_QRCodeHandle!=null)
+            if (hv_QRCodeHandle != null)
             {
                 HOperatorSet.ClearDataCode2dModel(hv_QRCodeHandle);
                 hv_QRCodeHandle.Dispose();
@@ -284,18 +306,18 @@ namespace ScanKitWpf.ViewModels
                 HOperatorSet.ClearDataCode2dModel(hv_DMCodeHandle);
                 hv_DMCodeHandle.Dispose();
             }
-            if(hv_PDF417CodeHandle != null)
+            if (hv_PDF417CodeHandle != null)
             {
                 HOperatorSet.ClearDataCode2dModel(hv_PDF417CodeHandle);
                 hv_PDF417CodeHandle.Dispose();
             }
 
-            if (hv_AcqHandle!=null)
+            if (hv_AcqHandle != null)
             {
                 HOperatorSet.CloseFramegrabber(hv_AcqHandle);
                 hv_AcqHandle.Dispose();
             }
-            
+
             CanOpenCamera = true;
             CanOneGrab = false;
             CanCloseCamera = false;
@@ -305,7 +327,7 @@ namespace ScanKitWpf.ViewModels
 
         public void SaveConfig()
         {
-            var configStr = JsonSerializer.Serialize(_config, new JsonSerializerOptions { Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true });
+            var configStr = JsonSerializer.Serialize(_config, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true });
             File.WriteAllText("appsettings.json", configStr);
 
         }
@@ -343,7 +365,7 @@ namespace ScanKitWpf.ViewModels
             AnalyseCode();
             sw.Stop();
             AddMsg($"手动识别， 耗时：{sw.ElapsedMilliseconds} 毫秒");
-            
+
             AddMsg($"{JsonSerializer.Serialize(codeInfos, options)}");
         }
 
@@ -396,27 +418,28 @@ namespace ScanKitWpf.ViewModels
         {
             // 执行软触发
             HOperatorSet.GrabImage(out ho_Image, hv_AcqHandle);
-
-            if (!string.IsNullOrEmpty(_config.PicSaveConfig.PicPath))
+            picFileFolder = Path.Combine(_config.PicSaveConfig.PicPath, DateTime.Now.ToString("yyyyMMdd"));
+            if (!string.IsNullOrEmpty(picFileFolder))
             {
-                if (!Directory.Exists(_config.PicSaveConfig.PicPath))
+                if (!Directory.Exists(picFileFolder))
                 {
-                    Directory.CreateDirectory(_config.PicSaveConfig.PicPath);
+                    Directory.CreateDirectory(picFileFolder);
                 }
-                string fileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{_config.PicSaveConfig.PicType}";
-                HOperatorSet.WriteImage(ho_Image, _config.PicSaveConfig.PicType, 0, Path.Combine(_config.PicSaveConfig.PicPath, fileName));
-                Task.Run(() =>
-                {
-                    try
-                    {
-                        File.Copy(Path.Combine(_config.PicSaveConfig.PicPath, fileName), Path.Combine(_config.PicSaveConfig.PicPath, "1.jpg"), true);
-                    }
-                    catch (Exception ex)
-                    {
-                        AddMsg($"程序异常：{ex.Message}");
-                    }
+                picFileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{_config.PicSaveConfig.PicType}";
+                HOperatorSet.WriteImage(ho_Image, _config.PicSaveConfig.PicType, 0, Path.Combine(picFileFolder, picFileName));
+                //上位机如果需要显示图片，则用固定文件名保存至指定目录
+                //Task.Run(() =>
+                //{
+                //    try
+                //    {
+                //        File.Copy(Path.Combine(_config.PicSaveConfig.PicPath, picFileName), Path.Combine(_config.PicSaveConfig.PicPath, "1.jpg"), true);
+                //    }
+                //    catch (Exception ex)
+                //    {
+                //        AddMsg($"程序异常：{ex.Message}");
+                //    }
 
-                });
+                //});
             }
 
             AnalyseCode();
@@ -442,12 +465,12 @@ namespace ScanKitWpf.ViewModels
             {
                 if (_config.Camera.MulPasing)
                 {
-                    for (int i = 3; i <= 7; i+=2)
+                    for (int i = 3; i <= 7; i += 2)
                     {
-                        for (float j = 0.3f; j <= 2; j+=0.2f)
+                        for (float j = 0.3f; j <= 2; j += 0.2f)
                         {
                             HObject ho_ImageEmphasize;
-                            HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, i,i, j);//增强图片的对比度
+                            HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, i, i, j);//增强图片的对比度
                             AnalyseBarCode(ho_ImageEmphasize);
                             ho_ImageEmphasize.Dispose();
                         }
@@ -680,7 +703,7 @@ namespace ScanKitWpf.ViewModels
             {
                 AddMsg($"填充PDF417码出错：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
-            
+
         }
 
         private double GetAngle(double x, double y)
@@ -747,6 +770,23 @@ namespace ScanKitWpf.ViewModels
                 AddMsg($"解析物料信息失败，{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
             return returnModel;
+        }
+
+        private void ClearSavedImages(object? state)
+        {
+            int savedDays = _config.PicSaveConfig.SavedDays;
+
+            if (Directory.Exists(_config.PicSaveConfig.PicPath))
+            {
+                foreach (var item in Directory.GetDirectories(_config.PicSaveConfig.PicPath))
+                {
+                    var creationTime = Directory.GetCreationTime(item);
+                    if ((DateTime.Now - creationTime).TotalDays > savedDays)
+                    {
+                        Directory.Delete(item, true);
+                    }
+                }
+            }
         }
     }
 }

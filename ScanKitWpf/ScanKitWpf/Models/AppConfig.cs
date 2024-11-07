@@ -62,6 +62,8 @@ namespace ScanKitWpf.Models
     {
         public string PicType { get; set; }
         public string PicPath { get; set; }
+
+        public int SavedDays { get; set; } = 30;
     }
 
     public class CodeConfig
