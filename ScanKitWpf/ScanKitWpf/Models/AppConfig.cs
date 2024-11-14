@@ -22,6 +22,8 @@ namespace ScanKitWpf.Models
 
         public ushort ServerPort { get; set; }
 
+        public string EndMark { get; set; } = "\r\n";
+
         public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
         public TriggerConfig Trigger { get; set; }

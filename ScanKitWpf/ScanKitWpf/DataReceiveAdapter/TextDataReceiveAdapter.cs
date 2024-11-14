@@ -1,4 +1,6 @@
 ﻿using HPSocket.Adapter;
+using Microsoft.Extensions.Options;
+using ScanKitWpf.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,8 +11,8 @@ namespace ScanKitWpf.DataReceiveAdapter
 {
     public class TextDataReceiveAdapter : TerminatorDataReceiveAdapter<string>
     {
-        public TextDataReceiveAdapter() 
-            : base(terminator:Encoding.UTF8.GetBytes("\r\n"))
+        public TextDataReceiveAdapter(IOptionsMonitor<AppConfig> config) 
+            : base(terminator:Encoding.UTF8.GetBytes(config.CurrentValue.EndMark))
         {
         }
 

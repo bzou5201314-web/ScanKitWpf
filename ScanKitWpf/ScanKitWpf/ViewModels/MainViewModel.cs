@@ -142,7 +142,7 @@ namespace ScanKitWpf.ViewModels
             tcpServer.SocketBufferSize = 4096;
             tcpServer.Address = _config.ServerIp;
             tcpServer.Port = _config.ServerPort;
-            tcpServer.DataReceiveAdapter = new TextDataReceiveAdapter();
+            tcpServer.DataReceiveAdapter = new TextDataReceiveAdapter(config);
 
             tcpServer.OnPrepareListen += TcpServer_OnPrepareListen;
             tcpServer.OnAccept += TcpServer_OnAccept;
