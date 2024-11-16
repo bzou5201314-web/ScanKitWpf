@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using PropertyChanged;
 using ScanKitWpf.DataReceiveAdapter;
 using ScanKitWpf.Models;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -42,7 +43,6 @@ namespace ScanKitWpf.ViewModels
             //WriteIndented = true
         };
 
-        StringBuilder stringBuilder = new StringBuilder();
         HObject ho_Image;
         HObject ho_SybolRegions;
         HObject ho_QRSybolRegions;
@@ -90,9 +90,9 @@ namespace ScanKitWpf.ViewModels
 
         readonly ITcpServer<string> tcpServer;
 
-        TextBox txtMsg;
-        public StringBuilder sbMsg;
-        public string rtxtMsg { get; set; }
+        public ObservableCollection<string> lstMsg { get; set; }
+
+        ListBox lstMsgBox;
 
         public string ImagePath { get; set; }
 
@@ -134,7 +134,7 @@ namespace ScanKitWpf.ViewModels
                 barCodeChecked = true;
             }
             hv_BarCodeType = barCodeTypes.ToArray();
-            sbMsg = new StringBuilder();
+            lstMsg=new ObservableCollection<string>();
 
             System.Threading.Timer timerClearPic = new System.Threading.Timer(ClearSavedImages, null, TimeSpan.FromSeconds(1), TimeSpan.FromDays(1));
 
@@ -514,7 +514,7 @@ namespace ScanKitWpf.ViewModels
             }
             hWindow = frameworkElement.FindName("Hsmart") as HalconDotNet.HSmartWindowControlWPF;
             hWindow.SetFullImagePart();
-            txtMsg = frameworkElement.FindName("rtxtMsg") as TextBox;
+            lstMsgBox= frameworkElement.FindName("lstMsg") as ListBox;
         }
 
         private void AnalyseBarCode(HObject hoImage)
@@ -721,18 +721,17 @@ namespace ScanKitWpf.ViewModels
         static object locker = new object();
         private void AddMsg(string msg)
         {
+            
             try
             {
-                string str;
-                lock (locker)
+                lstMsgBox.Dispatcher.BeginInvoke(() =>
                 {
-                    sbMsg.AppendLine($"{DateTime.Now:yy-MM-dd HH:mm:ss.fff}: {msg}");
-                    str = sbMsg.ToString();
-                }
-                txtMsg.Dispatcher.BeginInvoke(() =>
-                {
-                    txtMsg.Text = str;
-                    txtMsg.ScrollToEnd();
+                    if (lstMsg.Count > 100)
+                    {
+                        lstMsg.RemoveAt(0);
+                    }
+                    lstMsg.Add($"{DateTime.Now:yy-MM-dd HH:mm:ss.fff}: {msg}");
+                    lstMsgBox.ScrollIntoView(lstMsgBox.Items[lstMsgBox.Items.Count - 1]);
                 });
                 _logger.LogInformation(msg);
             }

@@ -99,8 +99,15 @@
                 </hc:TabControl>
 
             </Grid>
-            <TextBox Grid.Row="1" x:Name="rtxtMsg" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" AcceptsReturn="True"  TextWrapping="WrapWithOverflow"
-                 cal:Message.Attach="[Event TextChanged]=[Action ScrollToEnd($source)]"/>
+            <ListBox x:Name="lstMsg" Grid.Row="1" Margin="0,2,0,0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock TextWrapping="Wrap" Margin="0,-10,0,0" Text="{Binding}"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+            <!--<TextBox Grid.Row="1" x:Name="rtxtMsg" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" IsReadOnly="True" AcceptsReturn="True"  TextWrapping="WrapWithOverflow"
+                 cal:Message.Attach="[Event TextChanged]=[Action ScrollToEnd($source)]"/>-->
         </Grid>
     </hc:TransitioningContentControl>
 </Window>
