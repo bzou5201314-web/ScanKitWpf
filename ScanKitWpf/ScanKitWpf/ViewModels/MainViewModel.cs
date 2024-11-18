@@ -191,7 +191,7 @@ namespace ScanKitWpf.ViewModels
                     var sendData = JsonSerializer.Serialize(materialInfo, options);
                     
                     //返回识别所有条码用这段
-                    //var sendData = JsonSerializer.Serialize(sendData, options);
+                    //var sendData = JsonSerializer.Serialize(codeInfos, options);
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
