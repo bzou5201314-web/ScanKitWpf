@@ -1,5 +1,6 @@
 ﻿using Caliburn.Micro;
 using HalconDotNet;
+using HandyControl.Controls;
 using HPSocket;
 using HPSocket.Tcp;
 using Microsoft.Extensions.Logging;
@@ -7,33 +8,44 @@ using Microsoft.Extensions.Options;
 using PropertyChanged;
 using ScanKitWpf.DataReceiveAdapter;
 using ScanKitWpf.Models;
-using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using System.Text.Unicode;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 
 namespace ScanKitWpf.ViewModels
 {
     [AddINotifyPropertyChangedInterface]
     public class MainViewModel : Screen
     {
-        readonly AppConfig _config;
+        public AppConfig Config { get; set; }
         readonly ILogger _logger;
-        public override string DisplayName { get; set; }
+        public override string DisplayName
+        {
+            get { return Config.Title; }
+            set { Config.Title = value; }
+        }
 
-        public string ServerIp { get; set; }
-        public int ServerPort { get; set; }
+        private bool ReturnAllCode
+        {
+            get
+            {
+                foreach (var item in Config.ParsingConfig)
+                {
+                    if (item.IsChecked && item.ReturnType == "Return All")
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
 
         private int currReelSize = 7;
-
-        public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
 
         private bool barCodeChecked;
 
@@ -115,14 +127,13 @@ namespace ScanKitWpf.ViewModels
 
         public MainViewModel(IOptionsMonitor<AppConfig> config, ILogger logger)
         {
-            _config = config.CurrentValue;
-            ScanCodeConfig = _config.ScanCodeConfig;
+            Config = config.CurrentValue;
             _logger = logger;
-            DisplayName = _config.Title;
-            ServerIp = _config.ServerIp;
-            ServerPort = _config.ServerPort;
+            DisplayName = Config.Title;
+
+
             var barCodeTypes = new List<string>();
-            foreach (var barCodeType in ScanCodeConfig)
+            foreach (var barCodeType in Config.ScanCodeConfig)
             {
                 if (barCodeType.IsChecked && (barCodeType.CodeType == "Code 39" || barCodeType.CodeType == "Code 93" || barCodeType.CodeType == "Code 128"))
                 {
@@ -140,8 +151,8 @@ namespace ScanKitWpf.ViewModels
 
             tcpServer = new TcpServer<string>();
             tcpServer.SocketBufferSize = 4096;
-            tcpServer.Address = _config.ServerIp;
-            tcpServer.Port = _config.ServerPort;
+            tcpServer.Address = Config.ServerIp;
+            tcpServer.Port = Config.ServerPort;
             tcpServer.DataReceiveAdapter = new TextDataReceiveAdapter(config);
 
             tcpServer.OnPrepareListen += TcpServer_OnPrepareListen;
@@ -171,27 +182,34 @@ namespace ScanKitWpf.ViewModels
             AddMsg($"接收到消息:{obj}");
 
 
-            if (string.Compare(obj, _config.Trigger.TriggerCommand, true) == 0)
+            if (string.Compare(obj, Config.Trigger.TriggerCommand, true) == 0)
             {
                 AddMsg($"触发拍照解码");
                 try
                 {
                     OneGrab();
                     AddMsg($"解析耗时：{sw.ElapsedMilliseconds}毫秒");
-                    //识别唯一码用这段
-                    var materialInfo = ParseCode();
-                    if ((string.IsNullOrWhiteSpace(materialInfo.SN) || materialInfo.SN == "M") && File.Exists(Path.Combine(picFileFolder, picFileName)))
+                    string sendData = "";
+                    if (ReturnAllCode)
                     {
-                        if (!Directory.Exists(Path.Combine(picFileFolder, "NG")))
-                        {
-                            Directory.CreateDirectory(Path.Combine(picFileFolder, "NG"));
-                        }
-                        File.Move(Path.Combine(picFileFolder, picFileName), Path.Combine(picFileFolder, "NG", picFileName));
+                        //返回识别所有条码用这段
+                        sendData = JsonSerializer.Serialize(codeInfos, options);
                     }
-                    var sendData = JsonSerializer.Serialize(materialInfo, options);
-                    
-                    //返回识别所有条码用这段
-                    //var sendData = JsonSerializer.Serialize(codeInfos, options);
+                    else
+                    {
+                        //识别唯一码用这段
+                        var materialInfo = ParseCode();
+                        if ((string.IsNullOrWhiteSpace(materialInfo.SN) || materialInfo.SN == "M") && File.Exists(Path.Combine(picFileFolder, picFileName)))
+                        {
+                            if (!Directory.Exists(Path.Combine(picFileFolder, "NG")))
+                            {
+                                Directory.CreateDirectory(Path.Combine(picFileFolder, "NG"));
+                            }
+                            File.Move(Path.Combine(picFileFolder, picFileName), Path.Combine(picFileFolder, "NG", picFileName));
+                        }
+
+                        sendData = JsonSerializer.Serialize(materialInfo, options);
+                    }
                     var sendBytes = Encoding.UTF8.GetBytes(sendData);
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
@@ -230,7 +248,7 @@ namespace ScanKitWpf.ViewModels
             try
             {
                 HOperatorSet.OpenFramegrabber("MVision", 1, 1, 0, 0, 0, 0, "progressive", 8, "default", -1, "false",
-                    "auto", _config.Camera.Name, 0, -1, out hv_AcqHandle);
+                    "auto", Config.Camera.Name, 0, -1, out hv_AcqHandle);
                 CanOpenCamera = false;
                 CanOneGrab = true;
                 CanCloseCamera = true;
@@ -265,7 +283,7 @@ namespace ScanKitWpf.ViewModels
             }
             catch (Exception ex)
             {
-                MessageBox.Show(ex.Message, "相机错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                HandyControl.Controls.MessageBox.Show(ex.Message, "相机错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 AddMsg($"相机错误：{ex.Message}{Environment.NewLine}{ex.StackTrace}");
             }
         }
@@ -327,9 +345,9 @@ namespace ScanKitWpf.ViewModels
 
         public void SaveConfig()
         {
-            var configStr = JsonSerializer.Serialize(_config, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true });
+            var configStr = JsonSerializer.Serialize(Config, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, WriteIndented = true });
             File.WriteAllText("appsettings.json", configStr);
-
+            Growl.Success("配置保存成功，请重启程序加载配置！");
         }
 
         public void ManualAnalyse()
@@ -337,7 +355,7 @@ namespace ScanKitWpf.ViewModels
             codeInfos.Clear();
             if (!File.Exists(ImagePath))
             {
-                MessageBox.Show("文件不存在，请输入有效的图片路径");
+                HandyControl.Controls.MessageBox.Show("文件不存在，请输入有效的图片路径",button:MessageBoxButton.OK);
                 return;
             }
             if (hv_BarCodeHandle == null || hv_BarCodeHandle.H == 0)
@@ -377,7 +395,7 @@ namespace ScanKitWpf.ViewModels
             //HOperatorSet.SetFramegrabberParam(hv_AcqHandle, "external_trigger", "true");
             HOperatorSet.SetFramegrabberParam(hv_AcqHandle, "TriggerSource", "Software");
             HOperatorSet.SetFramegrabberParam(hv_AcqHandle, "grab_timeout", 2000);
-            HOperatorSet.SetFramegrabberParam(hv_AcqHandle, "ExposureTime", _config.Camera.ExposeTime);//设置曝光值
+            HOperatorSet.SetFramegrabberParam(hv_AcqHandle, "ExposureTime", Config.Camera.ExposeTime);//设置曝光值
         }
 
         private void SetBarCodeParam()
@@ -399,8 +417,8 @@ namespace ScanKitWpf.ViewModels
         private void SetQRCodeParam()
         {
             HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "polarity", "dark_on_light");
-            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "position_pattern_min", 2);
-            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_min", 4);
+            //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "position_pattern_min", 2);
+            //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_min", 4);
             //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_max", 100);
             HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "string_encoding", "raw");
         }
@@ -418,15 +436,15 @@ namespace ScanKitWpf.ViewModels
         {
             // 执行软触发
             HOperatorSet.GrabImage(out ho_Image, hv_AcqHandle);
-            picFileFolder = Path.Combine(_config.PicSaveConfig.PicPath, DateTime.Now.ToString("yyyyMMdd"));
+            picFileFolder = Path.Combine(Config.PicSaveConfig.PicPath, DateTime.Now.ToString("yyyyMMdd"));
             if (!string.IsNullOrEmpty(picFileFolder))
             {
                 if (!Directory.Exists(picFileFolder))
                 {
                     Directory.CreateDirectory(picFileFolder);
                 }
-                picFileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{_config.PicSaveConfig.PicType}";
-                HOperatorSet.WriteImage(ho_Image, _config.PicSaveConfig.PicType, 0, Path.Combine(picFileFolder, picFileName));
+                picFileName = $"{DateTime.Now:yyyyMMddHHmmssfff}.{Config.PicSaveConfig.PicType}";
+                HOperatorSet.WriteImage(ho_Image, Config.PicSaveConfig.PicType, 0, Path.Combine(picFileFolder, picFileName));
                 //上位机如果需要显示图片，则用固定文件名保存至指定目录
                 //Task.Run(() =>
                 //{
@@ -463,7 +481,7 @@ namespace ScanKitWpf.ViewModels
 
             if (barCodeChecked)
             {
-                if (_config.Camera.MulPasing)
+                if (Config.Camera.MulParsing)
                 {
                     for (int i = 3; i <= 7; i += 2)
                     {
@@ -488,15 +506,15 @@ namespace ScanKitWpf.ViewModels
                 }
 
             }
-            if (ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
+            if (Config.ScanCodeConfig.Any(p => p.CodeType == "QR Code" && p.IsChecked))
             {
                 AnalyseQrCode(ho_ImageScaled);
             }
-            if (ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
+            if (Config.ScanCodeConfig.Any(p => p.CodeType == "Data Matrix ECC 200" && p.IsChecked))
             {
                 AnalyseDMCode(ho_ImageScaled);
             }
-            if (ScanCodeConfig.Any(p => p.CodeType == "PDF417" && p.IsChecked))
+            if (Config.ScanCodeConfig.Any(p => p.CodeType == "PDF417" && p.IsChecked))
             {
                 AnalysePDF417Code(ho_ImageScaled);
             }
@@ -708,8 +726,8 @@ namespace ScanKitWpf.ViewModels
 
         private double GetAngle(double x, double y)
         {
-            var rotateCenterX = currReelSize == 15 ? _config.ImgCenter.Rotate_15_Center_X : currReelSize == 13 ? _config.ImgCenter.Rotate_13_Center_X : _config.ImgCenter.Rotate_7_Center_X;
-            var rotateCenterY = currReelSize == 15 ? _config.ImgCenter.Rotate_15_Center_Y : currReelSize == 13 ? _config.ImgCenter.Rotate_13_Center_Y : _config.ImgCenter.Rotate_7_Center_Y;
+            var rotateCenterX = currReelSize == 15 ? Config.ImgCenter.Rotate_15_Center_X : currReelSize == 13 ? Config.ImgCenter.Rotate_13_Center_X : Config.ImgCenter.Rotate_7_Center_X;
+            var rotateCenterY = currReelSize == 15 ? Config.ImgCenter.Rotate_15_Center_Y : currReelSize == 13 ? Config.ImgCenter.Rotate_13_Center_Y : Config.ImgCenter.Rotate_7_Center_Y;
             return Math.Round(Math.Atan2(y - rotateCenterY, x - rotateCenterX) * 180 / Math.PI, 2);
         }
 
@@ -744,40 +762,16 @@ namespace ScanKitWpf.ViewModels
 
         private MaterialInfoModel ParseCode()
         {
-            var returnModel = new MaterialInfoModel();
-            try
-            {
-                var matchedCodes = codeInfos.Where(c => (c.CodeType == "DM" || c.CodeType == "QR Code") && c.CodeValue.Split("{").Length == 9).ToList();
-                if (matchedCodes.Count == 1)
-                {
-                    var matchedCode = matchedCodes.First();
-                    var splitCodes = matchedCode.CodeValue.Split("{");
-                    returnModel.SN = splitCodes[8];
-                    returnModel.PN = splitCodes[0];
-                    returnModel.Qty = Convert.ToInt32(float.Parse(splitCodes[1]));
-                    returnModel.DC = splitCodes[4];
-                    returnModel.Supplier = splitCodes[3];
-                    returnModel.OtherBarcode = matchedCode.CodeValue;
-                }
-                else if (matchedCodes.Count > 1)
-                {
-                    returnModel.SN = "M";
-                }
-            }
-            catch (Exception ex)
-            {
-                AddMsg($"解析物料信息失败，{ex.Message}{Environment.NewLine}{ex.StackTrace}");
-            }
-            return returnModel;
+            return CodeParsing.ParseCode(codeInfos);
         }
 
         private void ClearSavedImages(object? state)
         {
-            int savedDays = _config.PicSaveConfig.SavedDays;
+            int savedDays = Config.PicSaveConfig.SavedDays;
 
-            if (Directory.Exists(_config.PicSaveConfig.PicPath))
+            if (Directory.Exists(Config.PicSaveConfig.PicPath))
             {
-                foreach (var item in Directory.GetDirectories(_config.PicSaveConfig.PicPath))
+                foreach (var item in Directory.GetDirectories(Config.PicSaveConfig.PicPath))
                 {
                     var creationTime = Directory.GetCreationTime(item);
                     if ((DateTime.Now - creationTime).TotalDays > savedDays)

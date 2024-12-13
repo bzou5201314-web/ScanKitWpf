@@ -23,7 +23,7 @@
                 <GroupBox Header="相机采集" FontSize="10" Style="{x:Null}">
                     <halcon:HSmartWindowControlWPF x:Name="Hsmart"></halcon:HSmartWindowControlWPF>
                 </GroupBox>
-                <hc:TabControl Grid.Column="1" ShowContextMenu="False" ShowOverflowButton="False" ShowScrollButton="True" IsScrollable="True" IsTabFillEnabled="true">
+                <hc:TabControl Grid.Column="1" ShowContextMenu="False" ShowOverflowButton="False" ShowScrollButton="True" IsScrollable="True" IsTabFillEnabled="True">
                     <hc:TabItem Header="相机运行" IsSelected="True">
                         <hc:SimpleStackPanel VerticalAlignment="Center" Background="LightSkyBlue">
                             <Button x:Name="OpenCamera" Content="打开相机" Style="{DynamicResource ButtonPrimary}"></Button>
@@ -31,17 +31,32 @@
                             <Button x:Name="CloseCamera" Content="关闭相机" Style="{DynamicResource ButtonWarning}"/>
                         </hc:SimpleStackPanel>
                     </hc:TabItem>
-                    <hc:TabItem Header="条码设置" Height="30" VerticalAlignment="Top">
+                    <hc:TabItem Header="相机设置">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1*"/>
+                                <ColumnDefinition Width="2*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="程序名称：" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            <TextBlock Text="相机ID：" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            <TextBlock Text="曝光时间：" Grid.Row="2" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                            <TextBox x:Name="DisplayName" Grid.Row="0" Grid.Column="1" Margin="2,2,0,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Config_Camera_Name" Grid.Row="1" Grid.Column="1" Margin="2,2,0,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Config_Camera_ExposeTime" Grid.Row="2" Grid.Column="1" Margin="2,2,0,0" VerticalAlignment="Center"/>
+                            <Button Grid.ColumnSpan="2" Grid.Row="3" Content="保存设置" cal:Message.Attach="[Event Click]=[Action SaveConfig]" Style="{DynamicResource ButtonPrimary}" />
+                        </Grid>
+                    </hc:TabItem>
+                    <hc:TabItem Header="条码设置">
                         <StackPanel Orientation="Vertical">
-                            <!--<GroupBox Header="条形码" Style="{x:Null}">
-                                <WrapPanel Orientation="horizontal">
-                                    <CheckBox Content="Code128" IsChecked="True" Margin="10,2,0,0"></CheckBox>
-                                    <CheckBox Content="Code39" IsChecked="True" Margin="10,2,0,0"></CheckBox>
-                                    <CheckBox Content="Code93" IsChecked="True" Margin="10,2,0,0"></CheckBox>
-                                </WrapPanel>
-                            </GroupBox>-->
                             <GroupBox Header="条码选择" Style="{x:Null}">
-                                <ListBox x:Name="ScanCodeConfig">
+                                <ListBox x:Name="Config_ScanCodeConfig">
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <CheckBox Content="{Binding CodeType}" IsChecked="{Binding IsChecked}"></CheckBox>
@@ -49,14 +64,22 @@
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                             </GroupBox>
-                            <GroupBox Header="解析规则" Style="{x:Null}">
+                            <GroupBox Header="解析返回" Style="{x:Null}">
                                 <StackPanel Orientation="vertical" HorizontalAlignment="left">
-                                    <Expander>
+                                <ListBox x:Name="Config_ParsingConfig">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <RadioButton GroupName="ReturnTypeGroup" Content="{Binding ReturnType}" IsChecked="{Binding IsChecked}"/>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                                
+                                    <!--<Expander>
                                         <Expander.Header>
                                             <RadioButton GroupName="RuleType" Content="分隔" Margin="2,2,0,0" HorizontalAlignment="Left"/>
                                         </Expander.Header>
                                     </Expander>
-                                    <RadioButton GroupName="RuleType" Content="正则表达式" Margin="2,2,0,0" HorizontalAlignment="Left"/>
+                                    <RadioButton GroupName="RuleType" Content="正则表达式" Margin="2,2,0,0" HorizontalAlignment="Left"/>-->
 
                                 </StackPanel>
                             </GroupBox>
@@ -69,15 +92,17 @@
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
                                 <RowDefinition Height="30"/>
+                                <RowDefinition Height="30"/>
                             </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="1*"/>
                                 <ColumnDefinition Width="2*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Text="IP：" Grid.Row="0" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
-                            <TextBox x:Name="ServerIp" Grid.Column="1" Grid.Row="0" Margin="2,2,0,0" VerticalAlignment="Center"/>
+                            <TextBox x:Name="Config_ServerIp" Grid.Column="1" Grid.Row="0" Margin="2,2,0,0" VerticalAlignment="Center"/>
                             <TextBlock Text="端口：" Grid.Row="1" HorizontalAlignment="Right" VerticalAlignment="Center"></TextBlock>
-                            <TextBox x:Name="ServerPort" Grid.Column="1" Grid.Row="1" Margin="2,2,0,0" VerticalAlignment="Center"></TextBox>
+                            <TextBox x:Name="Config_ServerPort" Grid.Column="1" Grid.Row="1" Margin="2,2,0,0" VerticalAlignment="Center"></TextBox>
+                            <Button Grid.ColumnSpan="2" Grid.Row="2" Content="保存设置" cal:Message.Attach="[Event Click]=[Action SaveConfig]" Style="{DynamicResource ButtonPrimary}" />
                         </Grid>
                     </hc:TabItem>
                     <hc:TabItem Header="图片识别">

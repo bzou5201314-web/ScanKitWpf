@@ -24,7 +24,9 @@ namespace ScanKitWpf.Models
 
         public string EndMark { get; set; } = "\r\n";
 
-        public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
+        public BindableCollection<CodeConfig> ScanCodeConfig { get; set; }
+
+        public BindableCollection<ParsingConfig> ParsingConfig { get; set; }
 
         public TriggerConfig Trigger { get; set; }
     }
@@ -57,7 +59,7 @@ namespace ScanKitWpf.Models
         public float Factor { get; set; }
 
         //多次识别，提高条形码识别率
-        public bool MulPasing { get; set; }
+        public bool MulParsing { get; set; }
     }
 
     public class PicConfig
@@ -81,5 +83,11 @@ namespace ScanKitWpf.Models
         public string TriggerSource { get; set; }
 
         public string TriggerCommand { get; set; }
+    }
+
+    public class ParsingConfig
+    {
+        public string ReturnType { get; set; }
+        public  bool IsChecked { get; set; }
     }
 }
