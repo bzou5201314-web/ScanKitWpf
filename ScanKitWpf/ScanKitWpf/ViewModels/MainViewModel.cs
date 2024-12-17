@@ -115,6 +115,32 @@ namespace ScanKitWpf.ViewModels
             set { _cameraConnected = value; }
         }
 
+        private CodeValueItem _selectedLanguage;
+
+        public CodeValueItem SelectedLanguage
+        {
+            get
+            {
+                _selectedLanguage = Config.Language.FirstOrDefault(p => p.Selected) ?? new CodeValueItem();
+                return _selectedLanguage;
+            }
+            set
+            {
+                _selectedLanguage = value;
+                foreach (var item in Config.Language)
+                {
+                    if (item == value)
+                    {
+                        item.Selected = true;
+                    }
+                    else
+                    {
+                        item.Selected = false;
+                    }
+                };
+            }
+        }
+
         /// <summary>
         /// 图片保存路径
         /// </summary>
@@ -161,6 +187,9 @@ namespace ScanKitWpf.ViewModels
             tcpServer.OnSend += TcpServer_OnSend;
             tcpServer.OnClose += TcpServer_OnClose;
             tcpServer.OnShutdown += TcpServer_OnShutdown;
+
+            // 设置初始语言，例如英语
+            LanguageManager.SetLanguage(SelectedLanguage.Code);
 
         }
 
@@ -350,6 +379,11 @@ namespace ScanKitWpf.ViewModels
             Growl.Success("配置保存成功，请重启程序加载配置！");
         }
 
+        public void LanguageChanged(object sender, SelectionChangedEventArgs e)
+        {
+            LanguageManager.SetLanguage(SelectedLanguage.Code);
+        }
+
         public void ManualAnalyse()
         {
             codeInfos.Clear();
@@ -420,7 +454,7 @@ namespace ScanKitWpf.ViewModels
             //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "position_pattern_min", 2);
             //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_min", 4);
             //HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "module_size_max", 100);
-            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "string_encoding", "raw");
+            HOperatorSet.SetDataCode2dParam(hv_QRCodeHandle, "string_encoding", "locale");
         }
 
         private void SetDMCodeParam()
@@ -429,6 +463,7 @@ namespace ScanKitWpf.ViewModels
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
+            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "candidate_selection", "extensive");
             HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "string_encoding", "locale");
         }
 
@@ -534,6 +569,8 @@ namespace ScanKitWpf.ViewModels
             hWindow.SetFullImagePart();
             lstMsgBox= frameworkElement.FindName("lstMsg") as ListBox;
         }
+
+
 
         private void AnalyseBarCode(HObject hoImage)
         {

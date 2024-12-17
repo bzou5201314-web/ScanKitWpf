@@ -26,9 +26,13 @@
                 <hc:TabControl Grid.Column="1" ShowContextMenu="False" ShowOverflowButton="False" ShowScrollButton="True" IsScrollable="True" IsTabFillEnabled="True">
                     <hc:TabItem Header="相机运行" IsSelected="True">
                         <hc:SimpleStackPanel VerticalAlignment="Center" Background="LightSkyBlue">
-                            <Button x:Name="OpenCamera" Content="打开相机" Style="{DynamicResource ButtonPrimary}"></Button>
-                            <Button x:Name="OneGrab" Margin="0,20" Content="图像抓拍" Style="{DynamicResource ButtonSuccess}"/>
-                            <Button x:Name="CloseCamera" Content="关闭相机" Style="{DynamicResource ButtonWarning}"/>
+                            
+                            <Button x:Name="OpenCamera" Content="{DynamicResource Main.OpenCamera}" Style="{DynamicResource ButtonPrimary}"></Button>
+                            <Button x:Name="OneGrab" Margin="0,20" Content="{DynamicResource Main.OneGrab}" Style="{DynamicResource ButtonSuccess}"/>
+                            <Button x:Name="CloseCamera" Content="{DynamicResource Main.CloseCamera}" Style="{DynamicResource ButtonWarning}"/>
+                            <ComboBox x:Name="Config_Language" hc:InfoElement.TitlePlacement="Left" hc:InfoElement.Title="{DynamicResource Main.SwichLanguage}" Style="{StaticResource ComboBoxExtend}" DisplayMemberPath="Value" SelectedValue="{Binding SelectedLanguage}" cal:Message.Attach="[Event SelectionChanged]=[Action LanguageChanged($source,$eventArgs)]">
+                            
+                            </ComboBox>
                         </hc:SimpleStackPanel>
                     </hc:TabItem>
                     <hc:TabItem Header="相机设置">

@@ -29,6 +29,9 @@ namespace ScanKitWpf.Models
         public BindableCollection<ParsingConfig> ParsingConfig { get; set; }
 
         public TriggerConfig Trigger { get; set; }
+
+        public BindableCollection<CodeValueItem> Language {  get; set; }
+
     }
 
     public class ImgCenterPoint
@@ -89,5 +92,14 @@ namespace ScanKitWpf.Models
     {
         public string ReturnType { get; set; }
         public  bool IsChecked { get; set; }
+    }
+
+    public class CodeValueItem
+    {
+        public string Code { get; set; }
+
+        public string Value { get; set; }
+
+        public bool Selected { get; set; }
     }
 }

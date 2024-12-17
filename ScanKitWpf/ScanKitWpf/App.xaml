@@ -11,6 +11,8 @@
                 <ResourceDictionary>
                     <local:Bootstrapper x:Key="Bootstrapper"/>
                 </ResourceDictionary>
+                <ResourceDictionary Source="language\Resource.zh-CN.xaml"/>
+                <ResourceDictionary Source="language\Resource.en-US.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
