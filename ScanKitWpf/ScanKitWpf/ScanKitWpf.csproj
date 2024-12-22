@@ -70,4 +70,8 @@
     </None>
   </ItemGroup>
 
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy $(ProjectDir)Lib $(OutDir)  /S /Y" />
+  </Target>
+
 </Project>
