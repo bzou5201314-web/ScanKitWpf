@@ -399,12 +399,12 @@ namespace ScanKitWpf.ViewModels
             }
             if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out hv_QRCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "enhanced_recognition", out hv_QRCodeHandle);
                 SetQRCodeParam();
             }
             if (hv_DMCodeHandle == null || hv_DMCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "standard_recognition", out hv_DMCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
                 SetDMCodeParam();
             }
             if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.H == 0)
@@ -520,7 +520,7 @@ namespace ScanKitWpf.ViewModels
                 {
                     for (int i = 3; i <= 7; i += 2)
                     {
-                        for (float j = 0.3f; j <= 2; j += 0.2f)
+                        for (float j = 1f; j <= 2; j += 1f)
                         {
                             HObject ho_ImageEmphasize;
                             HOperatorSet.Emphasize(ho_ImageScaled, out ho_ImageEmphasize, i, i, j);//增强图片的对比度
@@ -529,10 +529,10 @@ namespace ScanKitWpf.ViewModels
                         }
                     }
 
-                    HObject ho_ImageRotate;
-                    HOperatorSet.RotateImage(ho_ImageScaled, out ho_ImageRotate, 330, "constant");
-                    AnalyseBarCode(ho_ImageRotate);
-                    ho_ImageRotate.Dispose();
+                    //HObject ho_ImageRotate;
+                    //HOperatorSet.RotateImage(ho_ImageScaled, out ho_ImageRotate, 330, "constant");
+                    //AnalyseBarCode(ho_ImageRotate);
+                    //ho_ImageRotate.Dispose();
 
                 }
                 else
