@@ -11,26 +11,42 @@ namespace ScanKitWpf.Models
 {
     public class AppConfig
     {
+        public string Title { get; set; }
         public ImgCenterPoint ImgCenter { get; set; }
 
         public CameraInfo Camera { get; set; }
 
-        public BarCodeConfig BarCode { get; set; }
+        public PicConfig PicSaveConfig { get; set;}
 
         public required string ServerIp { get; set; }
 
         public ushort ServerPort { get; set; }
 
-        public ObservableCollection<CodeConfig> ScanCodeConfig { get; set; }
+        public string EndMark { get; set; } = "\r\n";
+
+        public BindableCollection<CodeConfig> ScanCodeConfig { get; set; }
+
+        public BindableCollection<ParsingConfig> ParsingConfig { get; set; }
 
         public TriggerConfig Trigger { get; set; }
+
+        public BindableCollection<CodeValueItem> Language {  get; set; }
+
     }
 
     public class ImgCenterPoint
     {
-        public double Center_X { get; set; }
+        public double Rotate_7_Center_X { get; set; }
 
-        public double Center_Y { get; set; }
+        public double Rotate_7_Center_Y { get; set; }
+
+        public double Rotate_13_Center_X { get; set; }
+
+        public double Rotate_13_Center_Y { get; set; }
+
+        public double Rotate_15_Center_X { get; set; }
+
+        public double Rotate_15_Center_Y { get; set; }
     }
 
     public class CameraInfo
@@ -44,20 +60,17 @@ namespace ScanKitWpf.Models
         public float Mask { get; set; }
 
         public float Factor { get; set; }
+
+        //多次识别，提高条形码识别率
+        public bool MulParsing { get; set; }
     }
 
-    public class BarCodeConfig
+    public class PicConfig
     {
-        public string[] CodeType { get; set; }
-        public List<BarCodeParam> Params { get; set; }
+        public string PicType { get; set; }
+        public string PicPath { get; set; }
 
-    }
-
-    public class BarCodeParam
-    {
-        public string Name { get; set; }
-
-        public string Value { get; set; }
+        public int SavedDays { get; set; } = 30;
     }
 
     public class CodeConfig
@@ -73,5 +86,20 @@ namespace ScanKitWpf.Models
         public string TriggerSource { get; set; }
 
         public string TriggerCommand { get; set; }
+    }
+
+    public class ParsingConfig
+    {
+        public string ReturnType { get; set; }
+        public  bool IsChecked { get; set; }
+    }
+
+    public class CodeValueItem
+    {
+        public string Code { get; set; }
+
+        public string Value { get; set; }
+
+        public bool Selected { get; set; }
     }
 }

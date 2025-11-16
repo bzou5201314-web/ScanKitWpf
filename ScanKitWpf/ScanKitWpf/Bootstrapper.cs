@@ -1,16 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
-using System.Windows.Threading;
-using Caliburn.Micro;
+﻿using Caliburn.Micro;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
+using ScanKitWpf.Extensions;
 using ScanKitWpf.Models;
 using ScanKitWpf.ViewModels;
+using System.Windows;
+using System.Windows.Threading;
 
 namespace ScanKitWpf
 {
@@ -29,6 +24,7 @@ namespace ScanKitWpf
         protected override void Configure()
         {
             base.Configure();
+
             services.AddSingleton<IWindowManager, WindowManager>();
             services.AddSingleton<IEventAggregator, EventAggregator>();
             services.AddSingleton<MainViewModel>();
@@ -42,6 +38,9 @@ namespace ScanKitWpf
            // _container.RegisterInstance(typeof(IConfiguration), "", config);
             
             services.AddOptions<AppConfig>().Bind(config);
+
+            var nlogConfig= new ConfigurationBuilder().SetBasePath(Environment.CurrentDirectory).AddJsonFile("nlogsettings.json", optional: false, true).Build();
+            services.AddNLogServices(nlogConfig);
             //_container.Instance<IOptions<AppConfig>>(services.AddOptions<AppConfig>().Bind(config.GetSection("RotateCoordinate")));
             //_container.Singleton<MainViewModel>();
         }

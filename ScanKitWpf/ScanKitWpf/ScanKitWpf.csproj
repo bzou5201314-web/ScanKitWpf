@@ -6,7 +6,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <ApplicationIcon>barcode1.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="barcode1.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <Folder Include="CameraOperate\" />
@@ -18,7 +23,6 @@
   <ItemGroup>
     <PackageReference Include="Caliburn.Micro" Version="4.0.212" />
     <PackageReference Include="Dumpify" Version="0.6.6" />
-    <PackageReference Include="FreeSql.Provider.Sqlite" Version="3.2.825" />
     <PackageReference Include="HandyControl" Version="3.5.1" />
     <PackageReference Include="HandyControls" Version="3.5.3" />
     <PackageReference Include="HP-Socket.x64" Version="5.0.2" />
@@ -26,8 +30,12 @@
     <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Configuration" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageReference Include="NLog" Version="5.3.2" />
+    <PackageReference Include="NLog.Extensions.Logging" Version="5.3.11" />
     <PackageReference Include="PropertyChanged.Fody" Version="4.1.0" />
     <PackageReference Include="System.Drawing.Common" Version="8.0.6" />
   </ItemGroup>
@@ -57,6 +65,13 @@
     <None Update="Lib\hdevenginedotnet.dll">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
+    <None Update="nlogsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="xcopy &quot;$(ProjectDir)Lib&quot; $(OutDir)  /S /Y" />
+  </Target>
 
 </Project>
