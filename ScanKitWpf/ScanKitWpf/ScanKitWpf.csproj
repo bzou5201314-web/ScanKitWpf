@@ -71,7 +71,7 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="xcopy $(ProjectDir)Lib $(OutDir)  /S /Y" />
+    <Exec Command="xcopy &quot;$(ProjectDir)&quot;Lib $(OutDir)  /S /Y" />
   </Target>
 
 </Project>
