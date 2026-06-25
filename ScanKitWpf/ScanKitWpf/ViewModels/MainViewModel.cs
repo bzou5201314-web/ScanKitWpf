@@ -11,6 +11,7 @@ using ScanKitWpf.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
@@ -193,6 +194,19 @@ namespace ScanKitWpf.ViewModels
 
         }
 
+        /// <summary>
+        /// 根据码类型获取配置的识别模式
+        /// </summary>
+        private string GetRecognitionMode(string codeType)
+        {
+            var config = Config.ScanCodeConfig.FirstOrDefault(p => p.CodeType == codeType);
+            if (config != null && !string.IsNullOrWhiteSpace(config.RecognitionMode))
+            {
+                return config.RecognitionMode;
+            }
+            return "standard_recognition";
+        }
+
         private HandleResult TcpServer_OnPrepareListen(IServer sender, nint listen)
         {
             AddMsg($"相机服务启动监听,监听IP：{sender.Address}， 监听端口：{sender.Port}");
@@ -288,17 +302,17 @@ namespace ScanKitWpf.ViewModels
                 }
                 if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
                 {
-                    HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "standard_recognition", out hv_QRCodeHandle);
+                    HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", GetRecognitionMode("QR Code"), out hv_QRCodeHandle);
                     SetQRCodeParam();
                 }
                 if (hv_DMCodeHandle == null || hv_DMCodeHandle.H == 0)
                 {
-                    HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "standard_recognition", out hv_DMCodeHandle);
+                    HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", GetRecognitionMode("Data Matrix ECC 200"), out hv_DMCodeHandle);
                     SetDMCodeParam();
                 }
                 if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.Type != HTupleType.HANDLE)
                 {
-                    HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
+                    HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", GetRecognitionMode("PDF417"), out hv_PDF417CodeHandle);
                 }
 
 
@@ -399,17 +413,17 @@ namespace ScanKitWpf.ViewModels
             }
             if (hv_QRCodeHandle == null || hv_QRCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", "enhanced_recognition", out hv_QRCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("QR Code", "default_parameters", GetRecognitionMode("QR Code"), out hv_QRCodeHandle);
                 SetQRCodeParam();
             }
             if (hv_DMCodeHandle == null || hv_DMCodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", "enhanced_recognition", out hv_DMCodeHandle);
+                HOperatorSet.CreateDataCode2dModel("Data Matrix ECC 200", "default_parameters", GetRecognitionMode("Data Matrix ECC 200"), out hv_DMCodeHandle);
                 SetDMCodeParam();
             }
             if (hv_PDF417CodeHandle == null || hv_PDF417CodeHandle.H == 0)
             {
-                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", "standard_recognition", out hv_PDF417CodeHandle);
+                HOperatorSet.CreateDataCode2dModel("PDF417", "default_parameters", GetRecognitionMode("PDF417"), out hv_PDF417CodeHandle);
             }
             HOperatorSet.GenEmptyObj(out ho_Image);
             HOperatorSet.ReadImage(out ho_Image, ImagePath);
@@ -463,7 +477,7 @@ namespace ScanKitWpf.ViewModels
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "small_modules_robustness", "high");
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_min", 4);
             //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "module_size_max", 100);
-            HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "candidate_selection", "extensive");
+            //HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "candidate_selection", "extensive");
             HOperatorSet.SetDataCode2dParam(hv_DMCodeHandle, "string_encoding", "locale");
         }
 

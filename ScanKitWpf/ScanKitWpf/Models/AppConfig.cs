@@ -77,6 +77,10 @@ namespace ScanKitWpf.Models
     {
         public string CodeType { get; set; }
         public bool IsChecked { get; set; }
+        /// <summary>
+        /// 2D码识别模式：standard_recognition, enhanced_recognition, maximum_recognition
+        /// </summary>
+        public string RecognitionMode { get; set; } = "standard_recognition";
     }
 
     public class TriggerConfig
