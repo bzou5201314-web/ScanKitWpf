@@ -10,14 +10,23 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="CameraOperate\**" />
+    <Compile Remove="Options\**" />
+    <EmbeddedResource Remove="CameraOperate\**" />
+    <EmbeddedResource Remove="Options\**" />
+    <None Remove="CameraOperate\**" />
+    <None Remove="Options\**" />
+    <Page Remove="CameraOperate\**" />
+    <Page Remove="Options\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="barcode1.ico" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="CameraOperate\" />
     <Folder Include="DB\" />
     <Folder Include="Lib\" />
-    <Folder Include="Options\" />
   </ItemGroup>
 
   <ItemGroup>

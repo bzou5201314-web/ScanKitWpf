@@ -253,7 +253,7 @@ namespace ScanKitWpf.ViewModels
 
                         sendData = JsonSerializer.Serialize(materialInfo, options);
                     }
-                    var sendBytes = Encoding.UTF8.GetBytes(sendData);
+                    var sendBytes = Encoding.UTF8.GetBytes(sendData + "\r\n");
                     sender.Send(connId, sendBytes, sendBytes.Length);
 
                 }
